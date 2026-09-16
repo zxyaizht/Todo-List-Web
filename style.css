@@ -601,6 +601,41 @@ body {
   transform: scale(0.97);
 }
 
+.settings-btn {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  z-index: 50;
+  color: var(--text-muted);
+  transition: color 0.3s, box-shadow 0.3s;
+}
+
+.settings-btn svg {
+  width: 22px;
+  height: 22px;
+  transition: transform 0.4s ease-in-out;
+  transform-origin: center;
+}
+
+.settings-btn:hover {
+  color: var(--primary);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.2);
+}
+
+.settings-btn:hover svg {
+  transform: rotate(180deg) scale(1.5);
+}
+
 @media (max-width: 520px) {
   body {
     padding: 1.5rem 0.75rem;
