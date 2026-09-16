@@ -45,24 +45,26 @@ function render() {
           autocomplete="off"
           maxlength="200"
         />
-        <select id="todo-priority" class="priority-select">
-          <option value="high">🔴 高优先级</option>
-          <option value="medium" selected>🟡 中优先级</option>
-          <option value="low">🟢 低优先级</option>
-        </select>
         <button type="submit" class="btn-add">➕ 添加任务</button>
       </form>
 
       <div class="todo-stats">
-        <div class="stat">
-          <span class="stat-dot active-dot"></span>
-          <span class="stat-num">${active}</span>
-          <span class="stat-label">未完成</span>
+        <div class="priority-select" id="todo-priority" data-value="medium" role="group" aria-label="任务优先级">
+          <button type="button" class="priority-option priority-high" data-priority="high"><span class="priority-dot high-dot"></span>高</button>
+          <button type="button" class="priority-option priority-medium selected" data-priority="medium"><span class="priority-dot medium-dot"></span>中</button>
+          <button type="button" class="priority-option priority-low" data-priority="low"><span class="priority-dot low-dot"></span>低</button>
         </div>
-        <div class="stat">
-          <span class="stat-dot done-dot"></span>
-          <span class="stat-num">${completed}</span>
-          <span class="stat-label">已完成</span>
+        <div class="stats-summary">
+          <div class="stat">
+            <span class="stat-dot active-dot"></span>
+            <span class="stat-num">${active}</span>
+            <span class="stat-label">未完成</span>
+          </div>
+          <div class="stat">
+            <span class="stat-dot done-dot"></span>
+            <span class="stat-num">${completed}</span>
+            <span class="stat-label">已完成</span>
+          </div>
         </div>
       </div>
 
@@ -166,12 +168,20 @@ function bindEvents() {
   const list = document.querySelector('#todo-list')
   const modal = document.querySelector('#confirm-modal')
 
+  prioritySelect.addEventListener('click', (e) => {
+    const option = e.target.closest('[data-priority]')
+    if (!option) return
+    prioritySelect.dataset.value = option.dataset.priority
+    prioritySelect.querySelectorAll('.priority-option').forEach((button) => button.classList.remove('selected'))
+    option.classList.add('selected')
+  })
+
   form.addEventListener('submit', (e) => {
     e.preventDefault()
     const text = input.value.trim()
     if (!text) return
     const todos = loadTodos()
-    todos.push({ id: Date.now(), text, done: false, priority: prioritySelect.value })
+    todos.push({ id: Date.now(), text, done: false, priority: prioritySelect.dataset.value })
     saveTodos(todos)
     input.value = ''
     render()
