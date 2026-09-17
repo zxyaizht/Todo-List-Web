@@ -1,5 +1,6 @@
 :root {
   --primary: #2563eb;
+  --primary-rgb: 37, 99, 235;
   --primary-dark: #1d4ed8;
   --primary-light: #dbeafe;
   --primary-soft: #eff6ff;
@@ -47,7 +48,7 @@ body {
   align-items: flex-start;
   justify-content: center;
   padding: 2.5rem 1rem;
-  background: linear-gradient(160deg, #e0f2fe 0%, #ede9fe 100%);
+  background: linear-gradient(160deg, var(--app-bg) 0%, var(--app-bg-2) 100%);
 }
 
 .todo-wrapper {
@@ -210,7 +211,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.9rem;
 }
 
 .stats-summary {
@@ -252,6 +253,116 @@ body {
 
 .stat-label {
   color: var(--text-muted);
+}
+
+/* ── Search box ── */
+
+.todo-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.85rem;
+  margin-bottom: 0.75rem;
+  background: var(--primary-soft);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.todo-search:focus-within {
+  background: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
+}
+
+.search-icon {
+  flex-shrink: 0;
+  color: var(--text-light);
+  transition: color 0.2s;
+}
+
+.todo-search:focus-within .search-icon {
+  color: var(--primary);
+}
+
+.todo-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem 0;
+  font-size: 0.92rem;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.todo-search input::placeholder {
+  color: var(--text-light);
+}
+
+.btn-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-light);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: background 0.2s, color 0.2s, opacity 0.2s;
+}
+
+.todo-search.has-value .btn-search-clear {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.btn-search-clear:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.btn-search-clear:active {
+  transform: scale(0.9);
+}
+
+.search-hint {
+  display: none;
+  margin: 0 0 0.75rem 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.search-hint.show {
+  display: block;
+}
+
+.search-hint strong {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.search-hint.no-match {
+  color: var(--danger);
+}
+
+.search-hl {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.todo-item.done .search-hl {
+  background: var(--primary-soft);
+  color: var(--text-light);
 }
 
 .todo-list {
@@ -455,23 +566,35 @@ body {
   transform: scale(0.92);
 }
 
-.todo-actions {
+/* 清空 + 筛选：一排五个（清空已完成 / 已完成 / 未完成 / 全部 / 全部清空） */
+
+.todo-clear-actions {
   display: flex;
-  gap: 0.6rem;
-  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
 }
 
-.btn-clear-done,
-.btn-clear-all {
-  flex: 1;
-  padding: 0.7rem 1rem;
-  font-size: 0.88rem;
-  font-weight: 500;
+/* 列表底部那一组：改为上边距 */
+.todo-clear-actions.bottom {
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+
+.todo-clear-actions button {
+  min-width: 0;
+  /* 上下加厚，按钮更饱满好点 */
+  padding: 0.8rem 0.55rem;
+  font-size: 0.84rem;
+  font-weight: 600;
   font-family: inherit;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, transform 0.1s;
+  white-space: nowrap;
+  /* flex: 1 0 auto —— 等量吸收剩余空间，但绝不压缩到文字放不下，放不下就换行 */
+  flex: 1 0 auto;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
 }
 
 .btn-clear-done {
@@ -484,6 +607,16 @@ body {
   border-color: #fecaca;
 }
 
+.btn-clear-incomplete {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.btn-clear-incomplete:hover {
+  background: #fde68a;
+  border-color: #fcd34d;
+}
+
 .btn-clear-all {
   color: var(--text-muted);
   background: #f8fafc;
@@ -494,9 +627,60 @@ body {
   border-color: var(--border);
 }
 
+.btn-restore-all,
+.btn-restore-done,
+.btn-restore-incomplete {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.btn-restore-all:hover,
+.btn-restore-done:hover,
+.btn-restore-incomplete:hover {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.btn-filter {
+  color: var(--text-muted);
+  background: #f8fafc;
+}
+
+.btn-filter:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: var(--primary-light);
+}
+
+.btn-filter.active {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.3);
+}
+
+.btn-filter.active:hover {
+  color: #fff;
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+
 .btn-clear-done:active,
-.btn-clear-all:active {
+.btn-clear-incomplete:active,
+.btn-clear-all:active,
+.btn-restore-all:active,
+.btn-restore-done:active,
+.btn-restore-incomplete:active,
+.btn-filter:active {
   transform: scale(0.98);
+}
+
+/* 无可操作内容时禁用，保持按钮的视觉顺序稳定 */
+.todo-clear-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .modal-overlay {
@@ -715,16 +899,18 @@ body {
 
 /* Color swatches */
 
+/* 七色固定排在同一行，用 grid 保证不换行、并随宽度自动缩放 */
 .color-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.4rem;
   margin-bottom: 1rem;
 }
 
 .color-swatch {
-  width: 38px;
-  height: 38px;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   border: 3px solid transparent;
   background: var(--swatch-color);
@@ -909,6 +1095,324 @@ body {
   transform: translateX(20px);
 }
 
+/* ── 搜索行 + 历史记录入口 ── */
+
+.todo-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.todo-tools .todo-search {
+  flex: 1 1 220px;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.btn-history {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.btn-history:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.btn-history:active {
+  transform: scale(0.98);
+}
+
+/* ── 历史记录面板 ── */
+
+.history-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 90; /* 低于确认弹窗（100），保证确认框浮在它上面 */
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.history-panel.open {
+  display: flex;
+}
+
+.history-dialog {
+  width: 100%;
+  max-width: 620px;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: modalIn 0.25s ease-out;
+}
+
+.history-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-panel-title {
+  flex: 1;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.history-panel-body {
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+
+.history-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.history-close-btn:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.history-time {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--text-light);
+  white-space: nowrap;
+}
+
+.history-item .todo-text {
+  cursor: default;
+}
+
+.btn-restore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--text-light);
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-restore:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.btn-restore:active {
+  transform: scale(0.92);
+}
+
+/* ── 自定义颜色记录 ── */
+
+/* 一行最多四个，多的自动换行 */
+.custom-color-history {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.saved-color {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.saved-color-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  background: var(--swatch-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.saved-color-swatch:hover {
+  transform: scale(1.12);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+.saved-color-swatch.selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--card-bg), 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.saved-color-swatch svg {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+
+/* 色码块本身即复制按钮：点击后内容像圆柱一样从上往下滚动 */
+.saved-color-code {
+  position: relative;
+  width: 100%;
+  height: 1.6em;
+  overflow: hidden;
+  padding: 0 0.3rem;
+  background: var(--primary-soft);
+  border: none;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-family: 'Courier New', monospace;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.saved-color-code:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary-light);
+}
+
+.saved-color-code:active {
+  transform: scale(0.96);
+}
+
+.code-roll {
+  display: block;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.code-line {
+  display: block;
+  height: 1.6em;
+  line-height: 1.6em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.code-line.is-done {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* 悬停圆形时右上角出现的删除 ×，颜色跟随主题 */
+.swatch-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.swatch-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--card-bg);
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.8);
+  transition: opacity 0.18s, transform 0.18s, background 0.2s;
+}
+
+.swatch-wrap:hover .swatch-remove {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.swatch-remove:hover {
+  background: var(--primary-dark);
+  transform: scale(1.15);
+}
+
+.swatch-remove:active {
+  transform: scale(0.9);
+}
+
+.color-entry .history-swatch {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--swatch-color, var(--primary));
+  border: 1px solid var(--border);
+}
+
+.history-kind {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 6px;
+  padding: 0.1rem 0.35rem;
+}
+
+/* 设置区块标题行（标题 + 右侧控件，如音效总开关） */
+.settings-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.settings-section-head .settings-section-title {
+  margin-bottom: 0;
+}
+
 @media (max-width: 520px) {
   body {
     padding: 1.5rem 0.75rem;
@@ -950,7 +1454,29 @@ body {
     justify-content: center;
   }
 
-  .todo-actions {
-    flex-direction: column;
+  .todo-clear-actions button {
+    font-size: 0.78rem;
+    padding: 0.7rem 0.45rem;
+  }
+
+  .todo-tools {
+    gap: 0.4rem;
+  }
+
+  .btn-history {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .history-panel {
+    padding: 1.25rem 0.75rem;
+  }
+
+  .history-panel-body {
+    padding: 0.9rem 0.9rem 1rem;
+  }
+
+  .history-time {
+    display: none;
   }
 }
