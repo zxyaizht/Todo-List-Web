@@ -1095,6 +1095,111 @@ body {
   transform: translateX(20px);
 }
 
+/* ── 排序控件 ── */
+
+.sort-control {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.btn-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.btn-sort:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.btn-sort:active {
+  transform: scale(0.98);
+}
+
+.sort-label-text {
+  max-width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sort-dropdown {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  min-width: 160px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  padding: 0.35rem;
+  display: none;
+  flex-direction: column;
+  gap: 0.2rem;
+  animation: sortDropIn 0.18s ease-out;
+}
+
+.sort-dropdown.show {
+  display: flex;
+}
+
+@keyframes sortDropIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sort-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.86rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sort-option:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.sort-option.active {
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-weight: 700;
+}
+
+.sort-option svg {
+  flex-shrink: 0;
+}
+
 /* ── 搜索行 + 历史记录入口 ── */
 
 .todo-tools {

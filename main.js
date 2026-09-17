@@ -4,6 +4,7 @@ const STORAGE_KEY = 'todo-list-items'
 const HISTORY_KEY = 'todo-history-items'
 const THEME_KEY = 'todo-theme-color'
 const SOUND_KEY = 'todo-sound-settings'
+const SORT_KEY = 'todo-sort'
 const PRIORITY_KEY = 'todo-priority'
 const COLORS_KEY = 'todo-custom-colors'
 const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' }
@@ -700,6 +701,42 @@ function restoreButtonsHTML(completed, incomplete) {
         <button class="btn-restore-all" data-action="restore-all">♻️ 恢复全部</button>`
 }
 
+/* ── 排序 ── */
+
+const SORT_OPTIONS = [
+  { key: 'time', label: '按添加时间' },
+  { key: 'priority-asc', label: '优先级升序' },
+  { key: 'priority-desc', label: '优先级降序' },
+]
+
+const PRIORITY_RANK = { high: 3, medium: 2, low: 1 }
+
+function loadSort() {
+  const raw = localStorage.getItem(SORT_KEY)
+  return SORT_OPTIONS.some((o) => o.key === raw) ? raw : 'time'
+}
+
+function saveSort(value) {
+  localStorage.setItem(SORT_KEY, value)
+}
+
+let currentSort = loadSort()
+
+function sortTodos(todos) {
+  if (currentSort === 'time') return todos.slice()
+  const sorted = todos.slice()
+  if (currentSort === 'priority-asc') {
+    sorted.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority])
+  } else {
+    sorted.sort((a, b) => PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority])
+  }
+  return sorted
+}
+
+function sortLabel() {
+  return SORT_OPTIONS.find((o) => o.key === currentSort)?.label || '排序'
+}
+
 /* ── 任务优先级 ──
  * 唯一数据源：只在用户手动点击优先级按钮时变更。
  * 不能从 DOM 读回（render() 会重建按钮），否则重渲染会把它重置成中。
@@ -830,8 +867,9 @@ function todoItemHTML(todo, indices) {
 }
 
 // 列表主体：主列表与历史记录共用，只是条目渲染器和空态不同
-function listHTML(items, view, emptyState, itemRenderer) {
-  if (items.length === 0) {
+function listHTML(items, view, emptyState, itemRenderer, shouldSort = false) {
+  const effective = shouldSort ? sortTodos(items) : items
+  if (effective.length === 0) {
     return `
             <li class="empty-state">
               <div class="empty-icon">${emptyState.icon}</div>
@@ -840,7 +878,7 @@ function listHTML(items, view, emptyState, itemRenderer) {
             </li>`
   }
 
-  const visible = getVisibleItems(items, view)
+  const visible = getVisibleItems(effective, view)
 
   if (visible.length === 0) {
     if (view.search.trim()) {
@@ -924,7 +962,7 @@ function renderListView(store, view) {
   const list = store.listEl()
   if (!list) return
   const items = store.read()
-  list.innerHTML = listHTML(items, view, store.empty, store.itemRenderer)
+  list.innerHTML = listHTML(items, view, store.empty, store.itemRenderer, store.shouldSort)
   updateSearchHint(store.hintEl(), getVisibleItems(items, view).length, getFilteredTodos(items, view.filter).length, view)
 }
 
@@ -995,13 +1033,36 @@ function render() {
           </svg>
           历史记录${historyCount > 0 ? ` (${historyCount})` : ''}
         </button>
+        <div class="sort-control">
+          <button type="button" class="btn-sort" id="btn-sort" title="排序方式" aria-haspopup="true" aria-expanded="false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="21" y1="2" x2="21" y2="8"/>
+              <line x1="3" y1="16" x2="3" y2="22"/>
+              <line x1="3" y1="8" x2="21" y2="8"/>
+              <line x1="3" y1="22" x2="21" y2="22"/>
+              <line x1="3" y1="12" x2="3" y2="16"/>
+              <line x1="21" y1="18" x2="21" y2="22"/>
+              <line x1="14" y1="12" x2="14" y2="16"/>
+              <line x1="14" y1="18" x2="14" y2="22"/>
+            </svg>
+            <span class="sort-label-text">${sortLabel()}</span>
+          </button>
+          <div class="sort-dropdown" id="sort-dropdown" role="menu">
+            ${SORT_OPTIONS.map((o) => `
+              <button type="button" class="sort-option${o.key === currentSort ? ' active' : ''}" data-sort="${o.key}" role="menuitem">
+                <span>${o.label}</span>
+                ${o.key === currentSort ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+              </button>
+            `).join('')}
+          </div>
+        </div>
       </div>
       <p class="search-hint" id="search-hint"></p>
 
       ${clearActionsHTML(mainView, completed, todos.length)}
 
       <ul class="todo-list" id="todo-list">
-        ${listHTML(todos, mainView, EMPTY_MAIN, todoItemHTML)}
+        ${listHTML(todos, mainView, EMPTY_MAIN, todoItemHTML, true)}
       </ul>
 
       ${clearActionsHTML(mainView, completed, todos.length, true)}
@@ -1080,6 +1141,26 @@ function bindEvents() {
 
   settingsBtn.addEventListener('click', openSettings)
   document.querySelector('#btn-history').addEventListener('click', openHistory)
+
+  // 排序下拉菜单
+  const sortBtn = document.querySelector('#btn-sort')
+  const sortDropdown = document.querySelector('#sort-dropdown')
+  if (sortBtn && sortDropdown) {
+    sortBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const isOpen = sortDropdown.classList.toggle('show')
+      sortBtn.setAttribute('aria-expanded', String(isOpen))
+    })
+    sortDropdown.addEventListener('click', (e) => {
+      const opt = e.target.closest('[data-sort]')
+      if (!opt) return
+      currentSort = opt.dataset.sort
+      saveSort(currentSort)
+      sortDropdown.classList.remove('show')
+      sortBtn.setAttribute('aria-expanded', 'false')
+      render()
+    })
+  }
 
   // 搜索框 + 五个按钮：与主列表共用同一套绑定
   bindViewControls(document.querySelector('#app'), mainView, mainStore)
@@ -1515,6 +1596,7 @@ const mainStore = {
   hintEl: () => document.querySelector('#search-hint'),
   empty: EMPTY_MAIN,
   itemRenderer: todoItemHTML,
+  shouldSort: true,
   clearDoneTitle: '确认清空已完成',
   clearDoneDesc: '已完成的任务将被移入历史记录，可随时恢复。',
   clearIncompleteTitle: '确认清空未完成',
@@ -1553,6 +1635,16 @@ document.addEventListener('click', (e) => {
       settingsView = 'sound'
       renderSettingsBody()
       updateSettingsHeader()
+    }
+  }
+
+  // 点击排序菜单外部时关闭下拉
+  const sortDropdown = document.querySelector('#sort-dropdown')
+  const sortBtn = document.querySelector('#btn-sort')
+  if (sortDropdown && sortDropdown.classList.contains('show')) {
+    if (!sortDropdown.contains(e.target) && !sortBtn?.contains(e.target)) {
+      sortDropdown.classList.remove('show')
+      sortBtn?.setAttribute('aria-expanded', 'false')
     }
   }
 })
