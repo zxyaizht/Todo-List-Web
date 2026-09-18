@@ -149,11 +149,20 @@ Page({
   // 输入过程中不 setData：每敲一个字都重渲染会拖慢输入、还容易让光标跳动。
   // 值先存在页面属性上，等提交时再读。
   onInput(e) {
-    this.inputText = e.detail.value
+    const raw = String(e.detail.value == null ? '' : e.detail.value)
+    // 兜底：个别机型上 textarea 的回车会往内容里插一个换行，而不是触发 bindconfirm。
+    // 这种情况直接当提交处理，保证「打字 + 回车」连续添加的手感不掉。
+    if (raw.indexOf('\n') !== -1) {
+      this.inputText = raw.replace(/\s*\n\s*/g, ' ')
+      this.addTodo(null, true)
+      return
+    }
+    this.inputText = raw
   },
 
-  addTodo(e) {
-    const text = String(this.inputText || '').trim()
+  addTodo(e, keepGoing) {
+    // 任务名里不允许出现换行（textarea 的换行键在个别机型上会插进来）
+    const text = String(this.inputText || '').replace(/\s*\n\s*/g, ' ').trim()
     if (!text) return
     // 回车（bindconfirm）和点「添加」都会走这里，用 detail.value 区分来源
     const fromKeyboard = !!(e && e.detail && typeof e.detail.value === 'string')
@@ -176,7 +185,7 @@ Page({
 
     // 与网页版一致：加完不让光标跑掉，可以一直「打字 + 回车」连续添加。
     // 只在本来就处于输入状态时才保持焦点，避免点按钮时凭空弹出键盘。
-    if (fromKeyboard || hadFocus) this.keepInputFocus()
+    if (fromKeyboard || hadFocus || keepGoing) this.keepInputFocus()
   },
 
   onInputBlur() {

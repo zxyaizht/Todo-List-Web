@@ -197,6 +197,38 @@ check('试听不受 5 个开关限制（preview 直接播）', /function preview
 check('事件音效随音高移调（按 REF_FREQ 缩放）', read(path.join(ROOT, 'utils', 'synth.js')).includes('freq / REF_FREQ'))
 check('启动时放宽音频可闻性（setInnerAudioOption）', appJsSrc.includes('setInnerAudioOption'))
 
+/* 输入组件统一用 textarea：微信官方已知问题 —— 部分安卓输入法在 <input> 里
+ * 输入英文时，键盘上方的候选词条会"打一个字母闪一下"；textarea 没有这个问题 */
+const indexWxmlInput = read(path.join(ROOT, 'pages', 'index', 'index.wxml'))
+const historyWxmlInput = read(path.join(ROOT, 'pages', 'history', 'history.wxml'))
+const settingsWxmlInput = read(path.join(ROOT, 'pages', 'settings', 'settings.wxml'))
+const isTextarea = (src, cls) => new RegExp('<textarea[\\s\\S]*?class="' + cls + '"').test(src)
+// 注释里会提到 <input>，先去掉注释再判断有没有真的用 input
+const stripComments = (s) => String(s).replace(/<!--[\s\S]*?-->/g, '')
+check('任务名输入用 textarea（避开 input 的输入法闪烁）', isTextarea(indexWxmlInput, 'form-input'))
+check('任务名输入保持单行高度（auto-height）', /class="form-input"[\s\S]*?auto-height="\{\{true\}\}"/.test(indexWxmlInput))
+check('任务名输入仍是「完成」键提交', /class="form-input"[\s\S]*?confirm-type="done"/.test(indexWxmlInput))
+check('三个页面的输入框都换成 textarea 了', !/<input\b/.test(stripComments(indexWxmlInput))
+  && !/<input\b/.test(stripComments(historyWxmlInput))
+  && !/<input\b/.test(stripComments(settingsWxmlInput)))
+check('主列表搜索框也是 textarea', isTextarea(indexWxmlInput, 'search-input'))
+check('历史记录搜索框也是 textarea', isTextarea(historyWxmlInput, 'search-input'))
+check('色值输入也是 textarea', isTextarea(settingsWxmlInput, 'custom-input'))
+// textarea 的 height 不生效，必须用 min-height 撑出单行高度
+const appWxssInput = read(path.join(ROOT, 'app.wxss'))
+check('textarea 用 min-height 撑高度', /\.form-input\s*\{[\s\S]*?min-height:/.test(appWxssInput)
+  && /\.search-input\s*\{[\s\S]*?min-height:/.test(appWxssInput))
+check('回车插换行时也能提交（onInput 兜底）', bodyOf(indexJs, 'onInput').includes('addTodo(null, true)'))
+check('任务名会清掉换行', bodyOf(indexJs, 'addTodo').includes('\\n'))
+
+/* 播放链路的两个真机 bug（声音时好时坏 / 每个频率都差不多） */
+check('缓存文件名带音高（否则播放器按路径缓存旧音频）', /sfx-\$\{key\}-\$\{name\}\.wav/.test(soundJsSrc))
+check('每次播放都新建播放实例（不复用做 stop→play）', /function playFile[\s\S]*?createInnerAudioContext/.test(soundJsSrc))
+check('换音高后延迟清理旧文件（不掐断正在播的音）', soundJsSrc.includes('setTimeout') && soundJsSrc.includes('cleanStale'))
+check('播放出错会自动重播一次', soundJsSrc.includes('onError') && soundJsSrc.includes('retried'))
+check('缓存文件被系统清掉后会重合成', soundJsSrc.includes('fileExists'))
+check('合成带限（谐波不越过奈奎斯特）', read(path.join(ROOT, 'utils', 'synth.js')).includes('harmonicCount'))
+
 /* 选优先级时不该收起键盘 */
 check('输入框保持键盘（hold-keyboard）', /hold-keyboard="\{\{true\}\}"/.test(indexWxml))
 

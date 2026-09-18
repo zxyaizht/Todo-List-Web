@@ -6,10 +6,15 @@
 
   <view class="search">
     <text class="search-icon">🔍</text>
-    <input
+    <!-- 用 textarea 而不是 input：部分安卓输入法在 input 里输入英文时，
+         键盘上方的候选词条会"打一个字母闪一下"（微信官方已知问题） -->
+    <textarea
       class="search-input"
       value="{{search}}"
       placeholder="搜索历史记录"
+      auto-height="{{true}}"
+      disable-default-padding="{{true}}"
+      confirm-type="search"
       bindinput="onSearch"
     />
     <view wx:if="{{search}}" class="search-clear" bindtap="clearSearch">✕</view>

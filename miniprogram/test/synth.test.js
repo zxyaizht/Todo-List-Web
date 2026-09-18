@@ -95,6 +95,45 @@ check('最低音 A0 也能合成', sampleCount(lowBuf) > 1000, true)
 check('最高音 C8 也能合成', sampleCount(highBuf) > 1000, true)
 checkNear('最高音 C8 的音高正确', estimateFreq(highBuf, 0.02, 0.06), 4186, 0.05)
 
+/* 抗混叠：用户反馈「频率设置每个频率的声音都差不多一样」——
+ * 老实现是 22050Hz 采样 + 直接生成 ±1 跳变的方波/锯齿，跳变含无限高频，
+ * 高音区泛音全部折返成混叠噪声，听起来就是一团结成一样的杂音。 */
+lines.push('--- 抗混叠（每个频率都要能听出音高） ---')
+function magAt(buf, freq, fromSec, toSec) {
+  const v = new DataView(buf)
+  const total = sampleCount(buf)
+  const start = Math.max(0, Math.floor(fromSec * synth.SAMPLE_RATE))
+  const end = Math.min(total, Math.floor(toSec * synth.SAMPLE_RATE))
+  let re = 0
+  let im = 0
+  for (let i = start; i < end; i++) {
+    const s = v.getInt16(44 + i * 2, true) / 32767
+    const t = (i - start) / synth.SAMPLE_RATE
+    re += s * Math.cos(2 * Math.PI * freq * t)
+    im += s * Math.sin(2 * Math.PI * freq * t)
+  }
+  return Math.sqrt(re * re + im * im) / Math.max(1, end - start)
+}
+check('采样率 ≥ 44100（奈奎斯特到 22kHz）', synth.SAMPLE_RATE >= 44100, true)
+check('所有音高用到的谐波都在奈奎斯特频率以下', [27.5, 130.81, 523.25, 1046.5, 2093, 4186].every((f) => {
+  const n = synth.harmonicCount(f)
+  return n >= 1 && n * f < synth.NYQUIST
+}), true)
+check('低频仍保留足够谐波（音色不发闷）', synth.harmonicCount(130.81) >= 20, true)
+/* priority 是 800Hz 方波，移到最高键(87)时基频 = 800×8 = 6400Hz。
+ * 老实现下 5 次谐波(32000Hz) 会折返到 44100-32000 = 12100Hz，形成"混叠哨音"。 */
+const hiSquare = synth.soundWav('priority', core.keyToFreq(87))
+const hiFund = magAt(hiSquare, 6400, 0.005, 0.04)
+const hiFold = magAt(hiSquare, 12100, 0.005, 0.04)
+check('最高音基频有能量', hiFund > 0.05, true)
+check('最高音没有折返（混叠）能量：折返点 < 基频的 5%', hiFold < hiFund * 0.05, true)
+/* 钢琴音也一样：C8(4186Hz) 的 3 次泛音 12558Hz 在老实现里会折返到 9492Hz */
+const hiPiano = synth.pianoWav(4186)
+const piFund = magAt(hiPiano, 4186, 0.005, 0.2)
+const piFold = magAt(hiPiano, 9492, 0.005, 0.2)
+check('最高音钢琴音基频有能量', piFund > 0.05, true)
+check('最高音钢琴音没有折返（混叠）能量', piFold < piFund * 0.05, true)
+
 lines.push('--- 钢琴音 ---')
 const pianoA = synth.pianoWav(261.63)
 const pianoB = synth.pianoWav(523.25)

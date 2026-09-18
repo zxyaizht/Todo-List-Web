@@ -7,7 +7,16 @@
  * 本文件是**纯 JS**（不碰任何小程序 API），所以能直接在 Node 里单测。
  * 音色定义与网页版 main.js 的 playSound 一致。 */
 
-const SAMPLE_RATE = 22050
+/* 采样率取 44.1k：22050 时奈奎斯特频率只有 11kHz，
+ * 钢琴高音区（C8 = 4186Hz）的泛音会全部折返成混叠噪声 ——
+ * 用户反馈"每个频率的声音都差不多一样"，高音区听起来只是一团相近的杂音。
+ * 44.1k 加上下面的带限合成，每个音高都能听出明确的音高。 */
+const SAMPLE_RATE = 44100
+const NYQUIST = SAMPLE_RATE / 2
+// 谐波数量上限：低频时奈奎斯特允许的谐波非常多，但没必要（也拖慢合成）
+const MAX_HARMONICS = 48
+// 留一点余量，避免刚好贴到奈奎斯特的谐波被量化成刺耳的噪声
+const BAND_LIMIT_RATIO = 0.92
 
 // 音效的基准音高：「添加任务」的第一个音。频率设置就是按它整体移调的。
 const REF_FREQ = 523.25
@@ -43,22 +52,36 @@ const SOUND_SPECS = {
   ],
 }
 
-function wave(type, phase) {
-  switch (type) {
-    case 'square':
-      return Math.sin(phase) >= 0 ? 1 : -1
-    case 'triangle': {
-      const t = (phase / (2 * Math.PI)) % 1
-      return 4 * Math.abs(t - 0.5) - 1
-    }
-    case 'sawtooth': {
-      const t = (phase / (2 * Math.PI)) % 1
-      return 2 * t - 1
-    }
-    case 'sine':
-    default:
-      return Math.sin(phase)
+/* 某个基频下允许的谐波个数：不超过奈奎斯特频率，同时做个数量上限。
+ * 低频时奈奎斯特允许上千个谐波，实际 48 个已经够"亮"，还能省合成时间。 */
+function harmonicCount(f) {
+  const allowed = Math.floor((NYQUIST * BAND_LIMIT_RATIO) / f)
+  return Math.max(1, Math.min(MAX_HARMONICS, allowed))
+}
+
+/* 波形。**带限**合成：方波 / 三角波 / 锯齿用有限次谐波叠加来生成，
+ * 而不是直接输出 ±1 的跳变 —— 跳变含无限高频，采样后必然混叠成噪声，
+ * 高音区就会变成"听不出音高的一团噪声"（这正是用户反馈的现象）。 */
+function wave(type, phase, f) {
+  const isSaw = type === 'square' || type === 'triangle' || type === 'sawtooth'
+  if (!isSaw || !f || !isFinite(f) || f <= 0) return Math.sin(phase)
+  const n = harmonicCount(f)
+  let s = 0
+  if (type === 'square') {
+    // 奇次谐波，幅度 1/h
+    for (let h = 1; h <= n; h += 2) s += Math.sin(h * phase) / h
+    return s * (4 / Math.PI)
   }
+  if (type === 'triangle') {
+    // 奇次谐波，幅度 1/h²，符号交替（比方波柔和得多）
+    for (let h = 1, i = 0; h <= n; h += 2, i++) {
+      s += (i % 2 === 0 ? 1 : -1) * (Math.sin(h * phase) / (h * h))
+    }
+    return s * (8 / (Math.PI * Math.PI))
+  }
+  // sawtooth：全部谐波，幅度 1/h
+  for (let h = 1; h <= n; h++) s += Math.sin(h * phase) / h
+  return s * (2 / Math.PI)
 }
 
 /* 把一串音渲染成浮点采样。scale 用来整体移调（目标频率 / 基准频率）。 */
@@ -79,7 +102,7 @@ function renderTones(tones, scale) {
       let gain
       if (t < 0.01) gain = (t / 0.01) * tone.vol
       else gain = tone.vol * Math.pow(0.001 / tone.vol, (t - 0.01) / tone.dur)
-      out[idx] += wave(tone.type, 2 * Math.PI * f * t) * gain
+      out[idx] += wave(tone.type, 2 * Math.PI * f * t, f) * gain
     }
   })
   return out
@@ -108,7 +131,10 @@ function renderPiano(f0) {
     const env = attack * Math.exp(-t / 0.32) * Math.max(0, tail)
     let s = 0
     for (let p = 0; p < partials.length; p++) {
-      s += partials[p].amp * Math.sin(2 * Math.PI * f0 * partials[p].mult * t)
+      const pf = f0 * partials[p].mult
+      // 超过奈奎斯特频率的泛音会折返成混叠噪声：高音区听起来就"不像那个音"了
+      if (pf >= NYQUIST * BAND_LIMIT_RATIO) break
+      s += partials[p].amp * Math.sin(2 * Math.PI * pf * t)
     }
     out[i] = s * env * 0.22
   }
@@ -171,10 +197,15 @@ function pianoWav(freq) {
 
 module.exports = {
   SAMPLE_RATE,
+  NYQUIST,
+  BAND_LIMIT_RATIO,
+  MAX_HARMONICS,
   REF_FREQ,
   SOUND_PEAK,
   PIANO_PEAK,
   SOUND_SPECS,
+  wave,
+  harmonicCount,
   normalize,
   renderTones,
   renderPiano,

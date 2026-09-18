@@ -21,10 +21,15 @@
     </view>
 
     <view class="custom-row">
-      <input
+      <!-- 用 textarea 而不是 input：色值全是英文/符号，input 在部分安卓输入法下
+           每敲一个字符候选词条就闪一下（微信官方已知问题），textarea 没有这个问题 -->
+      <textarea
         class="custom-input"
         value="{{customInput}}"
         placeholder="输入色值，如 #ff8800 / ff8800 / rgb(255,0,0) / red"
+        auto-height="{{true}}"
+        disable-default-padding="{{true}}"
+        confirm-type="done"
         bindinput="onCustomInput"
         bindconfirm="applyCustom"
       />

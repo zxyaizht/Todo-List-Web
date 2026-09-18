@@ -38,7 +38,8 @@ miniprogram/
 │   └── sound.js    音效播放：合成 → 写本地缓存文件 → wx.createInnerAudioContext 播放
 └── test/
     ├── core.test.js   纯逻辑单测：node test/core.test.js
-    ├── synth.test.js  合成音单测（校验 WAV 结构与音高）：node test/synth.test.js
+    ├── synth.test.js  合成音单测（校验 WAV 结构、音高、抗混叠）：node test/synth.test.js
+    ├── sound.test.js  播放链路测试（假 wx：缓存命名、实例管理、失败重试）：node test/sound.test.js
     ├── bench.js       性能基准：node test/bench.js
     └── validate.js    静态校验：node test/validate.js
 ```
@@ -75,16 +76,32 @@ miniprogram/
 - 数据只在本机，换手机不同步；想要多设备同步需要加后端。
 - 我没有可视化运行环境，**界面效果必须在微信开发者工具里确认**（性能问题请以**真机预览**为准，模拟器会慢很多）；纯逻辑与音频合成都有单测覆盖。
 - 音效在首次播放某个音高时会现场合成并写一次缓存文件（几毫秒），之后同音高直接复用；音高一变会清掉旧文件。
+- **输入框统一用 `textarea` 而不是 `input`**：微信官方已知问题 —— 部分安卓输入法在 `<input>` 里输入
+  英文时，键盘上方的候选词条会「打一个字母闪一下」；`textarea` 没有这个问题。配 `auto-height`
+  让它平时保持单行高度（`auto-height` 下 `height` 不生效，样式用 `min-height` + `line-height` 控制）。
+
+### 音效播放链路的三个坑（都踩过，都写了测试）
+
+用户反馈过「声音时好时坏」「频率设置每个频率的声音都差不多一样」，根因都在播放链路而不在合成算法：
+
+1. **缓存文件名必须带音高**（`sfx-<琴键序号>-<音效名>.wav`）。播放器是**按路径缓存音频**的：
+   固定文件名时，换了音高虽然后台重写了文件、也重建了实例，播出来还是最早那一段。
+2. **每次播放新建一个 `InnerAudioContext`**（播完即销毁，同时最多 6 个）。复用同一个实例做
+   `stop() → play()` 在部分安卓机上会静默失效 —— 这就是「时好时坏」。播放报错会自动重合成重播一次。
+3. **换音高后延迟 1.6s 再清理旧文件**。边写边删会把正在响的音掐断，播放中的文件也可能写不进去。
+
+另外合成的采样率是 44.1kHz、方波/三角/锯齿按**带限谐波**叠加生成：22.05kHz 采样时钢琴高音区的
+泛音会折返成混叠噪声，听起来就是「每个频率都差不多」。
 
 ## 测试
 
 ```bash
 node test/core.test.js    # 纯逻辑（颜色解析 / 排序 / 筛选 / 搜索 / 分页 / 钢琴音高）
-node test/synth.test.js   # 音频合成（WAV 结构、音高准确性、随频率设置移调）
+node test/synth.test.js   # 音频合成（WAV 结构、音高准确性、随频率设置移调、抗混叠）
+node test/sound.test.js   # 播放链路（缓存文件名带音高、每次新建实例、出错重试、延迟清理）
 node test/validate.js     # 静态校验（JSON、文件齐全、require 路径、事件绑定、接线检查）
 node test/bench.js        # 性能基准
 ```
 
-四个脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前三个，**并留意通过数有没有变化**。
-
-两个脚本都把报告写到 `%TEMP%` 下的 txt 文件里。
+脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前四个，**并留意通过数有没有变化**。
+当前通过数：core **98** / synth **41** / sound **36** / validate **186**。

@@ -71,11 +71,17 @@ page {
   box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.06);
 }
 
+/* 输入控件统一用 textarea（见 index.wxml 注释：部分安卓输入法在 input 里
+ * 输入英文时候选词条会闪）。auto-height 下 style.height 不生效，
+ * 所以用 min-height + line-height 固定"单行"时的视觉高度。 */
 .form-input {
   flex: 1;
   min-width: 0;
+  min-height: 80rpx;
   padding: 18rpx 20rpx;
+  box-sizing: border-box;
   font-size: 30rpx;
+  line-height: 44rpx;
   color: var(--text);
   background: var(--primary-soft);
   border-radius: var(--radius-sm);
@@ -149,8 +155,11 @@ page {
 .search-input {
   flex: 1;
   min-width: 0;
+  min-height: 82rpx;
   padding: 20rpx 0;
+  box-sizing: border-box;
   font-size: 28rpx;
+  line-height: 42rpx;
   color: var(--text);
 }
 

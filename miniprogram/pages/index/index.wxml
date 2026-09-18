@@ -9,15 +9,21 @@
     <view class="settings-gear" bindtap="goSettings" aria-label="设置">⚙️</view>
   </view>
 
+  <!-- 这里用 textarea 而不是 input：部分安卓输入法在 <input> 里输入英文时，
+       键盘上方的候选词条会"打一个字母闪一下"（微信官方已知问题），换成 textarea 就没有。
+       auto-height 让它平时就是单行高度，任务名很长时才自动长高。 -->
   <view class="form">
-    <input
+    <textarea
       class="form-input"
       value="{{inputValue}}"
       placeholder="今天要做什么？"
       maxlength="200"
+      auto-height="{{true}}"
+      disable-default-padding="{{true}}"
       confirm-type="done"
       confirm-hold="{{true}}"
       hold-keyboard="{{true}}"
+      cursor-spacing="24"
       focus="{{inputFocus}}"
       bindinput="onInput"
       bindconfirm="addTodo"
@@ -43,10 +49,14 @@
 
   <view class="search">
     <text class="search-icon">🔍</text>
-    <input
+    <!-- 同样用 textarea 避开 input 的输入法闪烁（见上方表单注释） -->
+    <textarea
       class="search-input"
       value="{{search}}"
       placeholder="搜索待办事项"
+      auto-height="{{true}}"
+      disable-default-padding="{{true}}"
+      confirm-type="search"
       bindinput="onSearch"
     />
     <view wx:if="{{search}}" class="search-clear" bindtap="clearSearch">✕</view>
