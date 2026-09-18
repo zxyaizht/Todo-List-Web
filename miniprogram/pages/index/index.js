@@ -28,6 +28,8 @@ Page({
   data: {
     themeStyle: '',
     inputValue: '',
+    // 绑定到输入框的 focus：失焦时置 false，添加任务后按需置 true 让它重新获得光标
+    inputFocus: false,
     priority: 'medium',
     priorityOrder: core.PRIORITY_ORDER,
     priorityLabels: core.PRIORITY_LABELS,
@@ -144,13 +146,19 @@ Page({
 
   /* ── 新增任务 ── */
 
+  // 输入过程中不 setData：每敲一个字都重渲染会拖慢输入、还容易让光标跳动。
+  // 值先存在页面属性上，等提交时再读。
   onInput(e) {
-    this.setData({ inputValue: e.detail.value })
+    this.inputText = e.detail.value
   },
 
-  addTodo() {
-    const text = String(this.data.inputValue || '').trim()
+  addTodo(e) {
+    const text = String(this.inputText || '').trim()
     if (!text) return
+    // 回车（bindconfirm）和点「添加」都会走这里，用 detail.value 区分来源
+    const fromKeyboard = !!(e && e.detail && typeof e.detail.value === 'string')
+    const hadFocus = this.data.inputFocus
+
     const todos = store.loadTodos()
     const now = Date.now()
     // LIFO：新任务插到数组头部，显示在最上方
@@ -161,9 +169,26 @@ Page({
     // 同理，优先级筛选若会挡住它，也一并取消
     if (view.priority !== 'all' && view.priority !== selectedPriority) view.priority = 'all'
     view.page = 1
+    this.inputText = ''
     this.setData({ inputValue: '' })
     sound.play('add')
     this.refresh()
+
+    // 与网页版一致：加完不让光标跑掉，可以一直「打字 + 回车」连续添加。
+    // 只在本来就处于输入状态时才保持焦点，避免点按钮时凭空弹出键盘。
+    if (fromKeyboard || hadFocus) this.keepInputFocus()
+  },
+
+  onInputBlur() {
+    this.setData({ inputFocus: false })
+  },
+
+  // focus 属性只在「值变化」时才生效，所以已经失焦时才去置 true
+  keepInputFocus() {
+    // 延迟一点断言：不同平台在回车后「失焦」的时机不一样（有的在 confirm 之后）
+    setTimeout(() => {
+      if (!this.data.inputFocus) this.setData({ inputFocus: true })
+    }, 50)
   },
 
   pickPriority(e) {

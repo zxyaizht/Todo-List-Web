@@ -151,6 +151,18 @@ function bodyOf(src, name) {
   return ''
 }
 
+/* 连续录入：加完任务光标要留在输入框，可以一直「打字 + 回车」（与网页版一致） */
+const indexWxml = read(path.join(ROOT, 'pages', 'index', 'index.wxml'))
+check('输入框回车提交', /bindconfirm="addTodo"/.test(indexWxml))
+check('回车不收起键盘（confirm-hold）', /confirm-hold="\{\{true\}\}"/.test(indexWxml))
+check('输入框受 focus 控制（加完可重新聚焦）', /focus="\{\{inputFocus\}\}"/.test(indexWxml))
+check('输入框失焦有回调', /bindblur="onInputBlur"/.test(indexWxml))
+check('页面定义了 onInputBlur', bodyOf(indexJs, 'onInputBlur') !== '')
+check('页面定义了 keepInputFocus', bodyOf(indexJs, 'keepInputFocus') !== '')
+check('输入时不逐字 setData（值暂存页面属性）', !bodyOf(indexJs, 'onInput').includes('setData'))
+check('加完任务会重新聚焦输入框', bodyOf(indexJs, 'addTodo').includes('keepInputFocus'))
+check('失焦回调把 inputFocus 置 false', bodyOf(indexJs, 'onInputBlur').includes('inputFocus'))
+
 /* 交互约定（与网页版一致）：
  * 单个删除立即执行、不弹确认框（回收站就是后悔药）；
  * 批量 / 清空类操作必须二次确认，避免一次误删一片。 */

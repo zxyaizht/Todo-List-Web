@@ -7,7 +7,7 @@
  *       onReady 里 perf.finish('历史记录') —— 会直接弹出数字，不用看控制台。
  * 排查完把 PERF_DEBUG 改成 false 即可全部关闭（弹窗与打点都不再执行）。 */
 
-const PERF_DEBUG = true
+const PERF_DEBUG = false
 
 let tapAt = 0
 const marks = []

@@ -16,8 +16,11 @@
       placeholder="今天要做什么？"
       maxlength="200"
       confirm-type="done"
+      confirm-hold="{{true}}"
+      focus="{{inputFocus}}"
       bindinput="onInput"
       bindconfirm="addTodo"
+      bindblur="onInputBlur"
     />
     <view class="form-btn" bindtap="addTodo">➕ 添加</view>
   </view>
