@@ -1,6 +1,7 @@
 const core = require('./utils/core')
 const store = require('./utils/storage')
 const sound = require('./utils/sound')
+const perf = require('./utils/perf')
 
 App({
   globalData: {
@@ -9,6 +10,7 @@ App({
   },
 
   onLaunch() {
+    perf.tap('启动小程序')
     this.applyTheme(store.loadTheme())
   },
 

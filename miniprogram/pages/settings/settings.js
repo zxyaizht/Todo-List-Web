@@ -1,6 +1,7 @@
 const core = require('../../utils/core')
 const store = require('../../utils/storage')
 const sound = require('../../utils/sound')
+const perf = require('../../utils/perf')
 
 const app = getApp()
 
@@ -17,7 +18,14 @@ Page({
 
   // 同回收站：数据在 onLoad 备好，第一次绘制即完整
   onLoad() {
+    perf.sinceTap('settings onLoad 开始')
+    const t = perf.start()
     this.refresh()
+    perf.step(t, 'settings 数据准备')
+  },
+
+  onReady() {
+    perf.sinceTap('settings 首次渲染完成')
   },
 
   refresh() {
@@ -117,8 +125,9 @@ Page({
     this.refresh()
   },
 
-  toggleMaster(e) {
-    const on = e.detail.value
+  // 总开关：自绘 toggle（不用原生 switch —— 原生组件在模拟器里创建开销大）
+  toggleMaster() {
+    const on = !this.data.allSoundOn
     const settings = store.loadSoundSettings()
     store.SOUND_TYPES.forEach((s) => { settings[s.key] = on })
     store.saveSoundSettings(settings)

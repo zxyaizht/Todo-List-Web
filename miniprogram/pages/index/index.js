@@ -1,6 +1,7 @@
 const core = require('../../utils/core')
 const store = require('../../utils/storage')
 const sound = require('../../utils/sound')
+const perf = require('../../utils/perf')
 
 const app = getApp()
 
@@ -58,6 +59,10 @@ Page({
     this.setData({ priority: selectedPriority, themeStyle: app.globalData.themeStyle })
     this.refresh()
     this.loaded = true
+  },
+
+  onReady() {
+    perf.sinceTap('index 首次渲染完成')
   },
 
   // onShow 仍要刷新：从设置改完主题、或从回收站恢复任务回来，数据都可能变了。
@@ -362,10 +367,12 @@ Page({
   /* ── 跳转 ── */
 
   goHistory() {
+    perf.tap('打开历史记录')
     wx.navigateTo({ url: '/pages/history/history' })
   },
 
   goSettings() {
+    perf.tap('打开设置')
     wx.navigateTo({ url: '/pages/settings/settings' })
   },
 })

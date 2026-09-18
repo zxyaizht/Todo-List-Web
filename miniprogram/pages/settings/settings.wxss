@@ -175,6 +175,38 @@
   color: var(--text);
 }
 
+/* 自绘开关：原生 switch 在模拟器里创建开销较大，这里用两个 view 实现，
+   顺便让开关颜色跟随主题色 */
+.toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 88rpx;
+  height: 48rpx;
+  border-radius: 999rpx;
+  background: #cbd5e1;
+  transition: background 0.2s;
+}
+
+.toggle.on {
+  background: var(--primary);
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 4rpx;
+  left: 4rpx;
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2rpx 6rpx rgba(15, 23, 42, 0.25);
+  transition: transform 0.2s;
+}
+
+.toggle.on .toggle-knob {
+  transform: translateX(40rpx);
+}
+
 .footnote {
   margin-top: 8rpx;
   text-align: center;

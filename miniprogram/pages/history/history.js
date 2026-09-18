@@ -1,6 +1,7 @@
 const core = require('../../utils/core')
 const store = require('../../utils/storage')
 const sound = require('../../utils/sound')
+const perf = require('../../utils/perf')
 
 const app = getApp()
 
@@ -50,8 +51,15 @@ Page({
   // 数据在 onLoad 里就准备好：navigateTo 每次都会新建页面实例，
   // 这样第一次绘制就是完整内容，不会出现"先空白、再填充"的延迟感。
   onLoad() {
+    perf.sinceTap('history onLoad 开始')
+    const t = perf.start()
     this.setData({ themeStyle: app.globalData.themeStyle })
     this.refresh()
+    perf.step(t, 'history 数据准备')
+  },
+
+  onReady() {
+    perf.sinceTap('history 首次渲染完成')
   },
 
   refresh() {

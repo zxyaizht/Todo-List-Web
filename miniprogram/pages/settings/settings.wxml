@@ -58,17 +58,16 @@
   <view class="section">
     <view class="section-head">
       <text class="section-title">音效</text>
-      <switch checked="{{allSoundOn}}" color="{{theme}}" bindchange="toggleMaster" />
+      <view class="toggle {{allSoundOn ? 'on' : ''}}" data-key="master" bindtap="toggleMaster">
+        <view class="toggle-knob"></view>
+      </view>
     </view>
     <view class="sound-list">
       <view wx:for="{{soundRows}}" wx:key="key" class="sound-row">
         <text class="sound-label">{{item.label}}</text>
-        <switch
-          checked="{{item.on}}"
-          color="{{theme}}"
-          data-key="{{item.key}}"
-          bindchange="toggleSound"
-        />
+        <view class="toggle {{item.on ? 'on' : ''}}" data-key="{{item.key}}" bindtap="toggleSound">
+          <view class="toggle-knob"></view>
+        </view>
       </view>
     </view>
   </view>

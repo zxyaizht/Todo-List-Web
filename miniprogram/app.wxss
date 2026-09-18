@@ -261,12 +261,6 @@ page {
   opacity: 0.45;
 }
 
-.action-btn.danger-soft {
-  color: var(--danger);
-  background: #fef2f2;
-  border-color: rgba(239, 68, 68, 0.3);
-}
-
 /* 完成所有（成功色） */
 .action-btn.complete {
   color: var(--success);

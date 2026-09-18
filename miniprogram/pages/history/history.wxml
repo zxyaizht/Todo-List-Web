@@ -45,12 +45,12 @@
       <view class="action-btn complete" bindtap="restoreAll">♻️ 恢复全部</view>
     </view>
 
-    <!-- 第三行：清空（永久删除，需确认） -->
+    <!-- 第三行：清空（永久删除，需确认）；配色与主界面一致，跟随主题色 -->
     <view class="action-row">
-      <view class="action-btn danger-soft" bindtap="clearAll">⚡ 全部清空</view>
-      <view class="action-btn danger-soft" bindtap="completeClear">✅ 完成所有并清空</view>
-      <view class="action-btn danger-soft {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成</view>
-      <view class="action-btn danger-soft {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成</view>
+      <view class="action-btn" bindtap="clearAll">⚡ 全部清空</view>
+      <view class="action-btn" bindtap="completeClear">✅ 完成所有并清空</view>
+      <view class="action-btn {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成</view>
+      <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成</view>
     </view>
   </block>
 
