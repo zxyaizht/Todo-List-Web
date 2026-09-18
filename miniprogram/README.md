@@ -104,4 +104,4 @@ node test/bench.js        # 性能基准
 ```
 
 脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前四个，**并留意通过数有没有变化**。
-当前通过数：core **98** / synth **41** / sound **36** / validate **186**。
+当前通过数：core **98** / synth **42** / sound **36** / validate **186**。
