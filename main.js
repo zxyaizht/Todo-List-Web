@@ -693,12 +693,13 @@ const FILTER_LABELS = { done: '已完成', active: '未完成', all: '全部' }
 /* ── 列表排序 ──
  * 只影响「显示顺序」，不改动 localStorage 里的数组顺序（LIFO 存储顺序始终保留）。
  * default = 不排序，按添加顺序（新任务在前）；刷新后回到 default（与筛选一致，属视图状态、不做持久化）。 */
-const SORT_ORDER = ['time-desc', 'time-asc', 'priority-desc', 'priority-asc']
+const SORT_ORDER = ['time-desc', 'time-asc', 'priority-desc', 'priority-asc', 'name-asc']
 const SORT_LABELS = {
   'time-desc': '按照时间降序',
   'time-asc': '按照时间升序',
   'priority-desc': '按照优先级降序',
   'priority-asc': '按照优先级升序',
+  'name-asc': '按照名称排序',
 }
 // 小标志上显示的短标签（默认就叫「排序」）
 const SORT_SHORT = {
@@ -706,6 +707,7 @@ const SORT_SHORT = {
   'time-asc': '时间 ↑',
   'priority-desc': '优先级 ↓',
   'priority-asc': '优先级 ↑',
+  'name-asc': '名称 A-Z',
 }
 const DEFAULT_SORT = 'default'
 const PRIORITY_RANK = { high: 3, medium: 2, low: 1 }
@@ -888,6 +890,7 @@ function sortVisibleItems(visible, sort) {
     // 同一优先级内按创建时间从新到旧，保证档内顺序稳定可预期
     'priority-desc': (a, b) => rankOf(b.todo) - rankOf(a.todo) || timeOf(b.todo) - timeOf(a.todo),
     'priority-asc': (a, b) => rankOf(a.todo) - rankOf(b.todo) || timeOf(b.todo) - timeOf(a.todo),
+    'name-asc': (a, b) => String(a.todo.text).localeCompare(String(b.todo.text), 'zh-CN') || timeOf(b.todo) - timeOf(a.todo),
   }
   const cmp = comparators[sort]
   return cmp ? visible.slice().sort(cmp) : visible
