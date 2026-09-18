@@ -1,0 +1,77 @@
+<view class="app" style="{{themeStyle}}">
+  <view class="header">
+    <view class="header-title">⚙️ 设置</view>
+    <view class="header-sub">主题色与音效</view>
+  </view>
+
+  <!-- 主题色 -->
+  <view class="section">
+    <view class="section-title">主题色</view>
+    <view class="swatches">
+      <view
+        wx:for="{{presets}}"
+        wx:key="hex"
+        class="swatch {{theme === item.hex ? 'selected' : ''}}"
+        style="background: {{item.hex}}"
+        data-hex="{{item.hex}}"
+        bindtap="pickTheme"
+      >
+        <text wx:if="{{theme === item.hex}}" class="swatch-check">✓</text>
+      </view>
+    </view>
+
+    <view class="custom-row">
+      <input
+        class="custom-input"
+        value="{{customInput}}"
+        placeholder="输入色值，如 #ff8800 / ff8800 / rgb(255,0,0) / red"
+        bindinput="onCustomInput"
+        bindconfirm="applyCustom"
+      />
+      <view class="custom-btn" bindtap="applyCustom">应用</view>
+    </view>
+
+    <block wx:if="{{customColors.length > 0}}">
+      <view class="saved-title">
+        <text>最近用的颜色</text>
+        <text class="saved-tip">点色码复制，点右上角 × 删除</text>
+      </view>
+      <view class="saved-grid">
+        <view wx:for="{{customColors}}" wx:key="*this" class="saved-item">
+          <view class="saved-swatch-wrap">
+            <view
+              class="saved-swatch {{theme === item ? 'selected' : ''}}"
+              style="background: {{item}}"
+              data-hex="{{item}}"
+              bindtap="applySaved"
+            ></view>
+            <view class="saved-remove" data-hex="{{item}}" catchtap="removeColor">✕</view>
+          </view>
+          <view class="saved-code" data-hex="{{item}}" bindtap="copyCode">{{item}}</view>
+        </view>
+      </view>
+      <view class="clear-colors" bindtap="clearAllColors">🗑️ 全部删除</view>
+    </block>
+  </view>
+
+  <!-- 音效 -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">音效</text>
+      <switch checked="{{allSoundOn}}" color="{{theme}}" bindchange="toggleMaster" />
+    </view>
+    <view class="sound-list">
+      <view wx:for="{{soundRows}}" wx:key="key" class="sound-row">
+        <text class="sound-label">{{item.label}}</text>
+        <switch
+          checked="{{item.on}}"
+          color="{{theme}}"
+          data-key="{{item.key}}"
+          bindchange="toggleSound"
+        />
+      </view>
+    </view>
+  </view>
+
+  <view class="footnote">数据保存在本机，不会上传服务器。</view>
+</view>

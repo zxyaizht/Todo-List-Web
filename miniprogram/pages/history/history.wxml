@@ -1,0 +1,90 @@
+<view class="app" style="{{themeStyle}}">
+  <view class="header">
+    <view class="header-title">🕘 历史记录</view>
+    <view class="header-sub">删除的任务会先放到这里，可随时恢复</view>
+  </view>
+
+  <view class="search">
+    <text class="search-icon">🔍</text>
+    <input
+      class="search-input"
+      value="{{search}}"
+      placeholder="搜索历史记录"
+      bindinput="onSearch"
+    />
+    <view wx:if="{{search}}" class="search-clear" bindtap="clearSearch">✕</view>
+  </view>
+  <view wx:if="{{hint}}" class="search-hint {{hintNoMatch ? 'no-match' : ''}}">{{hint}}</view>
+
+  <block wx:if="{{total > 0}}">
+    <view class="list-toolbar">
+      <view class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
+      <view class="priority-filter">
+        <text class="priority-filter-title">优先级</text>
+        <view
+          wx:for="{{priorityFilterOrder}}"
+          wx:key="*this"
+          class="priority-filter-option priority-{{item}} {{priorityFilter === item ? 'active' : ''}}"
+          data-priority="{{item}}"
+          bindtap="setPriorityFilter"
+        >{{priorityFilterLabels[item]}}</view>
+      </view>
+    </view>
+
+    <!-- 第一行：完成状态筛选 -->
+    <view class="action-row">
+      <view class="action-btn {{filter === 'all' ? 'filter-active' : ''}}" data-filter="all" bindtap="setFilter">全部</view>
+      <view class="action-btn {{filter === 'done' ? 'filter-active' : ''}}" data-filter="done" bindtap="setFilter">已完成 ({{completed}})</view>
+      <view class="action-btn {{filter === 'active' ? 'filter-active' : ''}}" data-filter="active" bindtap="setFilter">未完成 ({{incomplete}})</view>
+    </view>
+
+    <!-- 第二行：恢复（无损，不用确认） -->
+    <view class="action-row">
+      <view class="action-btn complete {{completed === 0 ? 'disabled' : ''}}" bindtap="restoreDone">♻️ 恢复已完成</view>
+      <view class="action-btn complete {{incomplete === 0 ? 'disabled' : ''}}" bindtap="restoreIncomplete">♻️ 恢复未完成</view>
+      <view class="action-btn complete" bindtap="restoreAll">♻️ 恢复全部</view>
+    </view>
+
+    <!-- 第三行：清空（永久删除，需确认） -->
+    <view class="action-row">
+      <view class="action-btn danger-soft" bindtap="clearAll">⚡ 全部清空</view>
+      <view class="action-btn danger-soft" bindtap="completeClear">✅ 完成所有并清空</view>
+      <view class="action-btn danger-soft {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成</view>
+      <view class="action-btn danger-soft {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成</view>
+    </view>
+  </block>
+
+  <view class="list">
+    <block wx:if="{{items.length > 0}}">
+      <view
+        wx:for="{{items}}"
+        wx:key="id"
+        class="item {{item.isColor ? '' : 'priority-' + item.priority}} {{item.done ? 'done' : ''}}"
+      >
+        <view wx:if="{{item.isColor}}" class="color-chip" style="background: {{item.text}}"></view>
+        <view wx:else class="badge priority-{{item.priority}}">{{item.priorityLabel}}</view>
+
+        <view class="item-text">
+          <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
+        </view>
+
+        <view wx:if="{{item.kindLabel}}" class="kind-tag">{{item.kindLabel}}</view>
+        <view wx:if="{{item.dateText}}" class="item-date">{{item.dateText}}</view>
+
+        <view class="item-op" data-id="{{item.id}}" bindtap="restoreOne">♻️</view>
+        <view class="item-op del" data-id="{{item.id}}" bindtap="purgeOne">✕</view>
+      </view>
+    </block>
+    <view wx:else class="empty">
+      <view class="empty-icon">{{emptyIcon}}</view>
+      <view class="empty-title">{{emptyTitle}}</view>
+      <view class="empty-desc">{{emptyDesc}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{visibleCount > 5}}" class="pagination">
+    <view class="page-btn {{page <= 1 ? 'disabled' : ''}}" bindtap="prevPage">‹ 上一页</view>
+    <text class="page-indicator">第 {{page}} / {{totalPages}} 页</text>
+    <view class="page-btn {{page >= totalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页 ›</view>
+  </view>
+</view>

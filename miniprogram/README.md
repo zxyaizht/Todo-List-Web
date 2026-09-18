@@ -1,0 +1,80 @@
+# 我的待办清单 · 微信小程序版
+
+这是网页版「我的待办清单」的小程序移植版（原生 WXML / WXSS / JS，**不是** web-view 套壳）。
+
+## 为什么是原生重写
+
+微信官方文档明确规定（[域名管理](https://developers.weixin.qq.com/doc/oplatform/developers/basic_func/domain.html)）：
+
+> 仅支持非个人主体类型的小程序和小游戏账号可配置业务域名（即，个人主体类型的账号不支持）
+
+也就是说 **个人主体的小程序用不了 `web-view`**，没法内嵌现有网页；而且业务域名还必须是**自己已 ICP 备案**的域名（`github.io` 没备案、也放不了校验文件）。所以只能原生重写。
+
+## 怎么跑起来
+
+1. 下载并安装 **微信开发者工具**（[官方下载](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)）。
+2. 打开工具 → 「导入项目」→ 目录选择 **本文件夹（`miniprogram/`）**。
+3. AppID 填你自己的；只是先看效果的话，选「**测试号**」或使用界面上的「不使用云服务/游客模式」即可。
+   `project.config.json` 里现在写的是 `touristappid`，导入后工具会提示你换成自己的 AppID。
+4. 编译预览。真机调试用工具里的「预览」扫码。
+
+> 上传发布前，需要在 [微信公众平台](https://mp.weixin.qq.com/) 注册小程序（个人主体可免费注册，需实名），
+> 并把 `project.config.json` 里的 `appid` 换成你的正式 AppID。
+
+## 目录结构
+
+```
+miniprogram/
+├── app.js / app.json / app.wxss     全局入口、路由配置、共用样式
+├── sitemap.json / project.config.json
+├── pages/
+│   ├── index/      主列表：添加、优先级、搜索、8 个操作按钮、排序、优先级筛选、分页
+│   ├── history/    回收站：恢复、彻底删除、筛选、排序、优先级筛选、分页
+│   └── settings/   主题色（七色 + 自定义）、最近用色（复制 / 删除）、音效开关
+├── utils/
+│   ├── core.js     纯逻辑：颜色解析、主题推导、排序（含中文拼音）、筛选、模糊搜索、分页
+│   ├── storage.js  本地存储（wx.setStorageSync）
+│   └── sound.js    音效播放（wx.createInnerAudioContext）
+├── assets/sounds/  5 个音效 wav（由 tools/gen-sounds.js 合成）
+├── tools/gen-sounds.js  重新生成音效：node tools/gen-sounds.js
+└── test/
+    ├── core.test.js  纯逻辑单测：node test/core.test.js
+    └── validate.js   静态校验：node test/validate.js
+```
+
+## 功能对照（相对网页版）
+
+| 功能 | 小程序版 |
+|---|---|
+| 增 / 删 / 改 / 勾选、优先级 | ✅ |
+| 任务名右侧添加日期（今天 / 昨天 / 同年 / 跨年） | ✅ |
+| 排序：时间、优先级、名称升降序（中文按**拼音**） | ✅（用系统 `showActionSheet` 选择） |
+| 筛选：全部 / 已完成 / 未完成 + 优先级筛选器 | ✅ |
+| 8 个操作按钮（含「完成所有并清空」） | ✅ |
+| 回收站：恢复 / 彻底删除 / 分页 | ✅ |
+| 主题色：七色 + 自定义色 + 最近用色 | ✅ |
+| 色码复制 | ✅ 改用 `wx.setClipboardData`，比浏览器可靠 |
+| 音效 5 种 + 总开关 | ✅ 改为播放预生成 wav（小程序没有 Web Audio 现场合成） |
+| 数据存储 | `wx.setStorageSync`，**仅存本机** |
+
+## 与网页版/桌面版的关系
+
+三者是**各自独立的实现**，数据互不相通（浏览器 localStorage / Electron / 小程序 Storage 是三个不同的存储）。
+数据结构（字段名）保持了一致，将来要做导入导出会比较容易。
+
+## 已知限制
+
+- **中文拼音排序依赖运行时的 `Intl.Collator`**：Android 端（V8）实测可用；iOS 端是 JavaScriptCore，
+  ICU 可能不完整。代码里做了**探针检测**（比较「阿」与「张」），不可用时自动降级为 Unicode 序
+  （英文排序仍然正确，中文会退化为按字符编码排）。`core.js` 导出的 `NAME_COMPARE.pinyin` 可以判断当前是否走了拼音。
+- 数据只在本机，换手机不同步；想要多设备同步需要加后端。
+- 我没有可视化运行环境，**界面效果必须在微信开发者工具里确认**；但纯逻辑部分有单测覆盖。
+
+## 测试
+
+```bash
+node test/core.test.js   # 纯逻辑单测（颜色解析 / 排序 / 筛选 / 搜索 / 分页）
+node test/validate.js    # 静态校验（JSON、文件齐全、require 路径、事件绑定、音频文件）
+```
+
+两个脚本都把报告写到 `%TEMP%` 下的 txt 文件里。

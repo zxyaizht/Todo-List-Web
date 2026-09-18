@@ -1,0 +1,7 @@
+# 微信开发者工具生成的本地文件与产物，不入库
+project.private.config.json
+commpocmedia.jpg
+
+# 如果以后用 npm 构建
+node_modules/
+miniprogram_npm/

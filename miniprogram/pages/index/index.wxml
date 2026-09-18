@@ -1,0 +1,109 @@
+<view class="app" style="{{themeStyle}}">
+  <view class="header">
+    <view class="header-title">📝 我的待办清单</view>
+    <view class="header-sub">记录你的每一项任务</view>
+  </view>
+
+  <view class="topbar">
+    <view class="topbar-btn" bindtap="goHistory">🕘 历史记录{{historyCount > 0 ? ' (' + historyCount + ')' : ''}}</view>
+    <view class="topbar-btn" bindtap="goSettings">⚙️ 设置</view>
+  </view>
+
+  <view class="form">
+    <input
+      class="form-input"
+      value="{{inputValue}}"
+      placeholder="今天要做什么？"
+      maxlength="200"
+      confirm-type="done"
+      bindinput="onInput"
+      bindconfirm="addTodo"
+    />
+    <view class="form-btn" bindtap="addTodo">➕ 添加</view>
+  </view>
+
+  <view class="priority-select">
+    <text class="priority-label">优先级</text>
+    <view
+      wx:for="{{priorityOrder}}"
+      wx:key="*this"
+      class="priority-option priority-{{item}} {{priority === item ? 'selected' : ''}}"
+      data-priority="{{item}}"
+      bindtap="pickPriority"
+    >{{priorityLabels[item]}}</view>
+  </view>
+
+  <view class="search">
+    <text class="search-icon">🔍</text>
+    <input
+      class="search-input"
+      value="{{search}}"
+      placeholder="搜索待办事项"
+      bindinput="onSearch"
+    />
+    <view wx:if="{{search}}" class="search-clear" bindtap="clearSearch">✕</view>
+  </view>
+  <view wx:if="{{hint}}" class="search-hint {{hintNoMatch ? 'no-match' : ''}}">{{hint}}</view>
+
+  <block wx:if="{{total > 0}}">
+    <!-- 工具行：排序 + 优先级筛选 -->
+    <view class="list-toolbar">
+      <view class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
+      <view class="priority-filter">
+        <text class="priority-filter-title">优先级</text>
+        <view
+          wx:for="{{priorityFilterOrder}}"
+          wx:key="*this"
+          class="priority-filter-option priority-{{item}} {{priorityFilter === item ? 'active' : ''}}"
+          data-priority="{{item}}"
+          bindtap="setPriorityFilter"
+        >{{priorityFilterLabels[item]}}</view>
+      </view>
+    </view>
+
+    <!-- 操作行：两行各 4 个 -->
+    <view class="action-row">
+      <view class="action-btn {{filter === 'all' ? 'filter-active' : ''}}" data-filter="all" bindtap="setFilter">全部</view>
+      <view class="action-btn complete {{incomplete === 0 ? 'disabled' : ''}}" bindtap="completeAll">✅ 完成所有{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
+      <view class="action-btn {{filter === 'done' ? 'filter-active' : ''}}" data-filter="done" bindtap="setFilter">已完成 ({{completed}})</view>
+      <view class="action-btn {{filter === 'active' ? 'filter-active' : ''}}" data-filter="active" bindtap="setFilter">未完成 ({{incomplete}})</view>
+    </view>
+    <view class="action-row">
+      <view class="action-btn" bindtap="clearAll">⚡ 清空全部</view>
+      <view class="action-btn" bindtap="completeClear">✅ 完成所有并清空</view>
+      <view class="action-btn {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成{{completed > 0 ? ' (' + completed + ')' : ''}}</view>
+      <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
+    </view>
+  </block>
+
+  <!-- 列表 -->
+  <view class="list">
+    <block wx:if="{{items.length > 0}}">
+      <view
+        wx:for="{{items}}"
+        wx:key="id"
+        class="item priority-{{item.priority}} {{item.done ? 'done' : ''}}"
+      >
+        <view class="badge priority-{{item.priority}}">{{item.priorityLabel}}</view>
+        <view class="check {{item.done ? 'checked' : ''}}" data-id="{{item.id}}" bindtap="toggleTodo">✓</view>
+        <view class="item-text" data-id="{{item.id}}" bindtap="editTodo">
+          <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
+        </view>
+        <view wx:if="{{item.dateText}}" class="item-date">{{item.dateText}}</view>
+        <view class="item-op del" data-id="{{item.id}}" bindtap="deleteTodo">✕</view>
+      </view>
+    </block>
+    <view wx:else class="empty">
+      <view class="empty-icon">{{emptyIcon}}</view>
+      <view class="empty-title">{{emptyTitle}}</view>
+      <view class="empty-desc">{{emptyDesc}}</view>
+    </view>
+  </view>
+
+  <!-- 分页 -->
+  <view wx:if="{{visibleCount > 5}}" class="pagination">
+    <view class="page-btn {{page <= 1 ? 'disabled' : ''}}" bindtap="prevPage">‹ 上一页</view>
+    <text class="page-indicator">第 {{page}} / {{totalPages}} 页</text>
+    <view class="page-btn {{page >= totalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页 ›</view>
+  </view>
+</view>

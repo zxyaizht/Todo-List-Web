@@ -1,0 +1,7 @@
+{
+  "name": "todo-list-miniprogram",
+  "version": "1.0.0",
+  "private": true,
+  "description": "我的待办清单 微信小程序版",
+  "type": "commonjs"
+}

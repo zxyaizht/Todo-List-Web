@@ -1,0 +1,463 @@
+/* 全局样式与共用组件（主列表 / 回收站共用）
+ * 设计令牌沿用网页版 style.css，几何尺寸换算成 rpx（1px ≈ 2rpx @375pt） */
+
+page {
+  --primary: #2563eb;
+  --primary-rgb: 37, 99, 235;
+  --primary-dark: #1d4ed8;
+  --primary-light: #dbeafe;
+  --primary-soft: #eff6ff;
+  --app-bg: #eef4ff;
+  --app-bg-2: #dbe7fd;
+  --card-bg: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --border: #e2e8f0;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --priority-high: #ef4444;
+  --priority-high-soft: #fef2f2;
+  --priority-medium: #f59e0b;
+  --priority-medium-soft: #fffbeb;
+  --priority-low: #22c55e;
+  --priority-low-soft: #f0fdf4;
+  --radius-sm: 20rpx;
+  --radius: 28rpx;
+
+  background: #f0f4f8;
+  color: #1e293b;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+.app {
+  min-height: 100vh;
+  padding: 28rpx 24rpx 60rpx;
+  box-sizing: border-box;
+  background: linear-gradient(160deg, var(--app-bg), var(--app-bg-2));
+}
+
+/* ── 顶部 ── */
+
+.header {
+  padding: 8rpx 4rpx 24rpx;
+}
+
+.header-title {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.header-sub {
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: var(--text-light);
+}
+
+/* ── 添加任务表单 ── */
+
+.form {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 12rpx;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.06);
+}
+
+.form-input {
+  flex: 1;
+  min-width: 0;
+  padding: 18rpx 20rpx;
+  font-size: 30rpx;
+  color: var(--text);
+  background: var(--primary-soft);
+  border-radius: var(--radius-sm);
+}
+
+.form-btn {
+  flex-shrink: 0;
+  padding: 18rpx 28rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--primary);
+  border-radius: var(--radius-sm);
+}
+
+/* ── 优先级选择（添加任务用） ── */
+
+.priority-select {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.priority-label {
+  font-size: 24rpx;
+  color: var(--text-light);
+  margin-right: 4rpx;
+}
+
+.priority-option {
+  padding: 12rpx 24rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  border-radius: 999rpx;
+  border: 2rpx solid transparent;
+}
+
+.priority-option.priority-high {
+  color: var(--priority-high);
+  background: var(--priority-high-soft);
+}
+
+.priority-option.priority-medium {
+  color: var(--priority-medium);
+  background: var(--priority-medium-soft);
+}
+
+.priority-option.priority-low {
+  color: var(--priority-low);
+  background: var(--priority-low-soft);
+}
+
+.priority-option.selected {
+  border-color: currentColor;
+}
+
+/* ── 搜索 ── */
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 20rpx;
+  padding: 0 24rpx;
+  background: var(--primary-soft);
+  border: 4rpx solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 20rpx 0;
+  font-size: 28rpx;
+  color: var(--text);
+}
+
+.search-clear {
+  flex-shrink: 0;
+  padding: 8rpx 10rpx;
+  font-size: 26rpx;
+  color: var(--text-light);
+}
+
+.search-hint {
+  margin: 12rpx 4rpx 0;
+  font-size: 24rpx;
+  color: var(--text-muted);
+}
+
+.search-hint.no-match {
+  color: var(--danger);
+}
+
+/* ── 工具行：排序 + 优先级筛选 ── */
+
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20rpx 0 16rpx;
+}
+
+.sort-btn {
+  padding: 12rpx 24rpx;
+  font-size: 25rpx;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 2rpx solid rgba(var(--primary-rgb), 0.25);
+  border-radius: 999rpx;
+}
+
+.priority-filter {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.priority-filter-title {
+  font-size: 24rpx;
+  color: var(--text-light);
+  margin-right: 4rpx;
+}
+
+.priority-filter-option {
+  padding: 10rpx 20rpx;
+  font-size: 25rpx;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--primary-soft);
+  border: 2rpx solid transparent;
+  border-radius: 999rpx;
+}
+
+.priority-filter-option.priority-high {
+  color: var(--priority-high);
+  background: var(--priority-high-soft);
+}
+
+.priority-filter-option.priority-medium {
+  color: var(--priority-medium);
+  background: var(--priority-medium-soft);
+}
+
+.priority-filter-option.priority-low {
+  color: var(--priority-low);
+  background: var(--priority-low-soft);
+}
+
+.priority-filter-option.active {
+  border-color: currentColor;
+}
+
+/* ── 操作行：两行各 4 个，等宽 ── */
+
+.action-row {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.action-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 22rpx 6rpx;
+  font-size: 25rpx;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 2rpx solid rgba(var(--primary-rgb), 0.25);
+  border-radius: var(--radius-sm);
+}
+
+.action-btn.filter-active {
+  color: #ffffff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.action-btn.disabled {
+  opacity: 0.45;
+}
+
+.action-btn.danger-soft {
+  color: var(--danger);
+  background: #fef2f2;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* 完成所有（成功色） */
+.action-btn.complete {
+  color: var(--success);
+  background: #f0fdf4;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+/* ── 列表 ── */
+
+.list {
+  margin-top: 8rpx;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+  padding: 22rpx 24rpx;
+  background: var(--card-bg);
+  border: 2rpx solid var(--border);
+  border-left: 8rpx solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.item.priority-high {
+  border-left-color: var(--priority-high);
+}
+
+.item.priority-medium {
+  border-left-color: var(--priority-medium);
+}
+
+.item.priority-low {
+  border-left-color: var(--priority-low);
+}
+
+.item.done {
+  opacity: 0.72;
+}
+
+.badge {
+  flex-shrink: 0;
+  width: 44rpx;
+  height: 44rpx;
+  line-height: 44rpx;
+  text-align: center;
+  font-size: 22rpx;
+  font-weight: 600;
+  color: #ffffff;
+  border-radius: 50%;
+}
+
+.badge.priority-high {
+  background: var(--priority-high);
+}
+
+.badge.priority-medium {
+  background: var(--priority-medium);
+}
+
+.badge.priority-low {
+  background: var(--priority-low);
+}
+
+.check {
+  flex-shrink: 0;
+  width: 40rpx;
+  height: 40rpx;
+  line-height: 38rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: transparent;
+  border: 3rpx solid var(--border);
+  border-radius: 10rpx;
+}
+
+.check.checked {
+  color: #ffffff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.item-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 29rpx;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.item.done .item-text {
+  color: var(--text-light);
+  text-decoration: line-through;
+}
+
+/* 搜索高亮片段 */
+.hl {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.item-date {
+  flex-shrink: 0;
+  padding: 4rpx 12rpx;
+  font-size: 22rpx;
+  color: var(--text-light);
+  background: var(--primary-soft);
+  border-radius: 10rpx;
+}
+
+.item-op {
+  flex-shrink: 0;
+  padding: 8rpx 12rpx;
+  font-size: 26rpx;
+  color: var(--text-light);
+}
+
+.item-op.del {
+  color: var(--danger);
+}
+
+/* 回收站里的颜色条目 */
+.color-chip {
+  flex-shrink: 0;
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  border: 2rpx solid var(--border);
+}
+
+.kind-tag {
+  flex-shrink: 0;
+  padding: 4rpx 12rpx;
+  font-size: 22rpx;
+  color: var(--text-muted);
+  background: #f1f5f9;
+  border-radius: 10rpx;
+}
+
+/* ── 空态 ── */
+
+.empty {
+  padding: 90rpx 24rpx;
+  text-align: center;
+  background: var(--primary-soft);
+  border: 4rpx dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.empty-icon {
+  font-size: 72rpx;
+}
+
+.empty-title {
+  margin-top: 12rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.empty-desc {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: var(--text-light);
+}
+
+/* ── 分页 ── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.page-btn {
+  padding: 14rpx 26rpx;
+  font-size: 25rpx;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 2rpx solid rgba(var(--primary-rgb), 0.25);
+  border-radius: 999rpx;
+}
+
+.page-btn.disabled {
+  opacity: 0.45;
+}
+
+.page-indicator {
+  font-size: 25rpx;
+  color: var(--text-muted);
+}
