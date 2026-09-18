@@ -25,3 +25,4 @@ dist-ssr
 
 # Local agent tooling / memory (not part of the project)
 .workbuddy/
+.env
