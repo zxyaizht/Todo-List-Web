@@ -60,7 +60,7 @@ miniprogram/
 | 任务名右侧添加日期（今天 / 昨天 / 同年 / 跨年） | ✅ |
 | 排序：时间、优先级、名称升降序（中文按**拼音**） | ✅（用系统 `showActionSheet` 选择） |
 | 筛选：全部 / 已完成 / 未完成 + 优先级筛选器 | ✅ |
-| 分页 | ✅ 每页 5 条；**点「第 X / Y 页」弹出跳页弹窗**（越界收敛、认不出保持原页）；弹窗是自绘的，**输入框不自动聚焦，点它才弹键盘**（见下） |
+| 分页 | ✅ 每页 5 条；**点「第 X / Y 页」弹出跳页弹窗**（越界收敛、认不出保持原页）；弹窗打开即**自动聚焦**（键盘马上弹出来，点一下就能改），并**跟着键盘平滑上移**不被遮挡 |
 | 完成所有 / 取消所有 | ✅ 同一个按钮：还有未完成时是「✅ 完成所有 (N)」，全都完成了自动变成「↩️ 取消所有」 |
 | 撤回 / 取消撤回 | ✅ 排序与优先级筛选中间的 ↶ ↷ 两个箭头（实心主题色）；快照式，覆盖任务增删改勾选、清空类、回收站恢复与删除、自定义色增删 |
 | 8 个操作按钮（含「完成所有并清空」） | ✅ 筛选+完成所有在清单**上方**，清空类 4 个在清单**下方** |
@@ -94,13 +94,18 @@ miniprogram/
   与改主题时设置是不够的 —— 从设置页改完主题返回主页，主页的导航栏会变回蓝色。
   现在三个页面的 `onShow` 与 `onReady` 都会调 `app.syncNavigationBar()`。
   代价：页面切换动画期间可能先闪一下静态配色（静态配置没法在运行时改），这是平台限制。
-- **跳页弹窗是自绘的，不是 `wx.showModal`**：`wx.showModal({ editable: true })` 会**自动聚焦**里面的
-  输入框 —— 手指刚点完页码，键盘就自己弹出来了；而它的官方参数只有 `title / content / showCancel /
-  cancelText / cancelColor / confirmText / confirmColor / editable / placeholderText`，
-  **没有**关闭自动聚焦的选项。所以三个页面各自放了一个自绘弹窗（`.page-dialog`，共用同一套样式与
-  `utils/pagedit.js` 的四个 handler），输入框不带 `focus`，用户点它才会弹键盘。
-  注意：弹窗里的 `textarea` 在 `position: fixed` 区域内，必须显式写 `fixed="{{true}}"`；
-  它也不该带 `confirm-hold`（确定后弹窗就销毁了，键盘要跟着收起来）。
+- **跳页弹窗是自绘的，不是 `wx.showModal`**：`wx.showModal({ editable: true })` 只能传
+  `title / content / showCancel / cancelText / cancelColor / confirmText / confirmColor /
+  editable / placeholderText`，**弹窗位置与键盘行为完全不受控**，而这里需要两件事：
+  ① 打开就**自动聚焦**（键盘立刻弹出来，点一下就能改页码，不用再点第二下）；
+  ② 弹窗要**跟着键盘平滑上移**，不能被键盘挡住。
+  所以三个页面各自放了一个自绘弹窗（`.page-dialog`，共用 `app.wxss` 里的样式与
+  `utils/pagedit.js` 的五个 handler）。三个容易踩的点：
+  - 蒙层是 `position: fixed`，**不会**跟着平台"自动上推页面"动 → 输入框要写
+    `adjust-position="{{false}}"`，改由 `bindkeyboardheightchange`（focus 事件里也带高度，同一个
+    handler 兜底）把蒙层的 `padding-bottom` 设成键盘高度，并且给蒙层加 `transition` 让它平滑移动；
+  - 弹窗里的 `textarea` 在 fixed 区域里，必须显式写 `fixed="{{true}}"`（否则安卓上位置会算错）；
+  - 不要带 `confirm-hold` / `hold-keyboard`（确定后弹窗就销毁了，键盘要跟着收起来）。
 
 ### 音效播放链路的四个坑（都踩过，都写了测试）
 
@@ -126,11 +131,11 @@ miniprogram/
 node test/core.test.js     # 纯逻辑（颜色解析 / 排序 / 筛选 / 搜索 / 分页 / 手动页码解析 / 钢琴音高）
 node test/synth.test.js    # 音频合成（WAV 结构、音高准确性、随频率设置移调、抗混叠）
 node test/sound.test.js    # 播放链路（缓存文件名带音高、每次新建实例、出错重试、防音爆、延迟清理）
-node test/pagedit.test.js  # 点页码跳页（自绘弹窗：正常跳页 / 越界收敛 / 认不出保持原页 / 取消）
+node test/pagedit.test.js  # 点页码跳页（自绘弹窗：自动聚焦 / 跟着键盘上移 / 正常 / 越界 / 认不出 / 取消）
 node test/undo.test.js     # 撤回（多处一起还原 / 重做失效 / 深度上限 / 自定义色）
 node test/validate.js      # 静态校验（JSON、文件齐全、require 路径、事件绑定、接线检查）
 node test/bench.js         # 性能基准
 ```
 
 脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前六个，**并留意通过数有没有变化**。
-当前通过数：core **111** / synth **42** / sound **47** / pagedit **43** / undo **28** / validate **322**。
+当前通过数：core **111** / synth **42** / sound **47** / pagedit **52** / undo **28** / validate **332**。

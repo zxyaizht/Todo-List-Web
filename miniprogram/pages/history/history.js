@@ -51,10 +51,12 @@ Page({
     total: 0,
     completed: 0,
     incomplete: 0,
-    // 页码跳转弹窗（自绘：平台的 showModal 会自动弹键盘）
+    // 页码跳转弹窗（自绘：位置与键盘行为都要自己控制）
     pageDialog: false,
     pageInput: '',
     pageTotal: 1,
+    // 当前键盘高度（px）：弹窗靠它把卡片顶到键盘上方
+    pageKeyHeight: 0,
     visibleCount: 0,
     totalPages: 1,
     page: 1,
@@ -298,6 +300,11 @@ Page({
 
   onPageDialogInput(e) {
     pagedit.inputPageDialog(this, e)
+  },
+
+  // 键盘高度变化（focus 事件里也带高度，绑同一个 handler 兜底）→ 把弹窗顶到键盘上方
+  onPageDialogKeyboard(e) {
+    pagedit.onDialogKeyboard(this, e)
   },
 
   closePageDialog() {

@@ -124,10 +124,10 @@
 
   <view class="footnote">数据保存在本机，不会上传服务器。</view>
 
-  <!-- 页码跳转弹窗：自绘，没有用 wx.showModal —— 平台的 editable 弹窗会**自动聚焦**输入框，
-       一点页码键盘就自己弹出来（用户要求"等我再点一下输入框再弹"），而 showModal 没有
-       关闭自动聚焦的参数。这里输入框不聚焦，用户点它才弹键盘。 -->
-  <view wx:if="{{pageDialog}}" class="page-dialog">
+  <!-- 页码跳转弹窗：自绘（wx.showModal 的位置与键盘行为都不受控）。
+       1) 输入框是 focus="{{true}}" → 弹窗一出现就聚焦，**键盘自动弹出来**，点完页码直接就能改，少点一下；
+       2) 蒙层的 padding-bottom 跟着键盘高度走 → 整张卡片平滑移到键盘上方，不会被挡住。 -->
+  <view wx:if="{{pageDialog}}" class="page-dialog" style="padding-bottom: {{pageKeyHeight}}px">
     <view class="page-dialog-card">
       <view class="page-dialog-title">跳转到第几页</view>
       <textarea
@@ -137,9 +137,14 @@
         auto-height="{{true}}"
         disable-default-padding="{{true}}"
         fixed="{{true}}"
+        focus="{{true}}"
+        auto-focus="{{true}}"
+        adjust-position="{{false}}"
         confirm-type="go"
         bindinput="onPageDialogInput"
         bindconfirm="confirmPageDialog"
+        bindfocus="onPageDialogKeyboard"
+        bindkeyboardheightchange="onPageDialogKeyboard"
       />
       <view class="page-dialog-actions">
         <view class="page-dialog-btn" bindtap="closePageDialog">取消</view>

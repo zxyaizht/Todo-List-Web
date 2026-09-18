@@ -1,10 +1,11 @@
 /* utils/pagedit.js 的行为测试（用假的 page + 假的 wx）
  *
  * 三个页面（主页 / 历史记录 / 最近用色）的「点页码跳页」都走这个模块。
- * 为什么不用 wx.showModal：它的 editable 输入框会**自动聚焦**，一点页码键盘就弹出来
- * （用户反馈"应该等我再点一下输入框才弹"），而 showModal 没有关闭自动聚焦的参数。
- * 所以弹窗是自绘的，输入框不聚焦 —— 键盘只在用户点输入框时由系统拉起，
- * 这一点由 WXML 里没有 focus 属性保证（validate.js 有静态断言）。
+ * 为什么自绘弹窗而不用 wx.showModal：showModal 的位置与键盘行为都不受控，而这里要
+ *   1) 弹窗打开就**自动聚焦**（键盘立刻弹出来，点一下就能改，不用再点第二下）；
+ *   2) 弹窗要靠键盘高度把自己**顶到键盘上方**（固定定位的蒙层不会跟着平台"上推页面"动）。
+ * 这两点在 WXML / WXSS 里落实（focus、adjust-position、padding-bottom + 过渡），
+ * 弹窗里"卡片怎么动"的数值逻辑就是本文件要测的 onDialogKeyboard。
  *
  * 这里把四种情况钉住：正常跳页 / 越界收敛 / 认不出保持原页 / 取消什么都不做。
  *
@@ -38,7 +39,7 @@ const pagedit = require('../utils/pagedit')
 // 假页面实例：setData 合并进 data，refresh 记账，apply 记账
 function makePage(current, total) {
   return {
-    data: { pageDialog: false, pageInput: '', pageTotal: 1 },
+    data: { pageDialog: false, pageInput: '', pageTotal: 1, pageKeyHeight: 0 },
     current,
     total,
     setDataCalls: 0,
@@ -80,7 +81,8 @@ lines.push('--- 打开弹窗 ---')
   check('弹窗打开', page.data.pageDialog, true)
   check('输入框预填当前页码', page.data.pageInput, '2')
   check('提示里写明范围', page.data.pageTotal, 5)
-  checkTrue('打开时没有产生额外的输入值（等用户自己点输入框）', page.pageInputRaw === '2')
+  check('打开时输入值已就绪（配合 focus 直接就能改）', page.pageInputRaw, '2')
+  check('初始键盘高度为 0（卡片先居中，键盘一弹就上移）', page.data.pageKeyHeight, 0)
 }
 check('只有一页时不弹（分页控件本来也不渲染）', openIt(1, 1).data.pageDialog, false)
 check('总页数为 0 / undefined 时按 1 页处理，不弹窗',
@@ -160,6 +162,32 @@ lines.push('--- 取消 ---')
   check('取消后弹窗关闭', page.data.pageDialog, false)
   check('取消不跳页', page.applyCalls, [])
   check('取消不提示', toasts, [])
+}
+
+lines.push('--- 键盘高度：把弹窗顶到键盘上方 ---')
+{
+  const page = openIt(1, 5)
+  const before = page.setDataCalls
+  pagedit.onDialogKeyboard(page, { detail: { height: 320, duration: 250 } })
+  check('键盘弹起后记下高度', page.data.pageKeyHeight, 320)
+  check('确实写进了 data', page.setDataCalls, before + 1)
+  pagedit.onDialogKeyboard(page, { detail: { height: 320, duration: 250 } })
+  check('相同高度忽略掉（官方 tip：这个事件会重复触发）', page.setDataCalls, before + 1)
+  pagedit.onDialogKeyboard(page, { detail: { height: 300 } })
+  check('高度变了就跟着更新（键盘收放时卡片会跟着动）', page.data.pageKeyHeight, 300)
+  pagedit.onDialogKeyboard(page, {})
+  check('没有 detail 时按 0 处理', page.data.pageKeyHeight, 0)
+  pagedit.onDialogKeyboard(page, { detail: { height: -50 } })
+  check('负数收敛到 0', page.data.pageKeyHeight, 0)
+  pagedit.onDialogKeyboard(page, { detail: { height: '360' } })
+  check('字符串高度也能处理', page.data.pageKeyHeight, 360)
+}
+{
+  const page = openIt(1, 5)
+  pagedit.onDialogKeyboard(page, { detail: { height: 300 } })
+  pagedit.closePageDialog(page)
+  check('关掉弹窗时键盘高度复位（免得下次打开带着上次的位移）',
+    [page.data.pageDialog, page.data.pageKeyHeight], [false, 0])
 }
 
 lines.push('--- 解析规则与 core.parsePageInput 一致 ---')

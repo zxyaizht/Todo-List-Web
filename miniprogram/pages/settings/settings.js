@@ -30,10 +30,12 @@ Page({
     customTotalPages: 1,
     // 与任务名输入框一致：只有用户主动退出输入才失焦
     colorFocus: false,
-    // 页码跳转弹窗（自绘：平台的 showModal 会自动弹键盘）
+    // 页码跳转弹窗（自绘：位置与键盘行为都要自己控制）
     pageDialog: false,
     pageInput: '',
     pageTotal: 1,
+    // 当前键盘高度（px）：弹窗靠它把卡片顶到键盘上方
+    pageKeyHeight: 0,
     soundRows: [],
     allSoundOn: true,
     // 音效全局参数：音量用百分比显示；频率用钢琴琴键序号（0=A0、87=C8，全音域）
@@ -118,6 +120,11 @@ Page({
 
   onPageDialogInput(e) {
     pagedit.inputPageDialog(this, e)
+  },
+
+  // 键盘高度变化（focus 事件里也带高度，绑同一个 handler 兜底）→ 把弹窗顶到键盘上方
+  onPageDialogKeyboard(e) {
+    pagedit.onDialogKeyboard(this, e)
   },
 
   closePageDialog() {

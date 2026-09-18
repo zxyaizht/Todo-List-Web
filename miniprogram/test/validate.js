@@ -262,15 +262,19 @@ check('新增颜色后跳到第 1 页（新颜色插在最前）', bodyOf(settin
 check('标题显示颜色总数', /\{\{customCount\}\}/.test(settingsWxmlInput))
 
 /* 点页码 → 弹出跳页弹窗（三个页面共用 utils/pagedit.js，规则与网页版 startPageEdit 一致）
- * 弹窗是**自绘**的：wx.showModal 的 editable 输入框会自动聚焦 —— 一点页码键盘就弹出来，
- * 而 showModal 没有关闭自动聚焦的参数（官方只有 title/content/showCancel/cancelText/
- * cancelColor/confirmText/confirmColor/editable/placeholderText）。所以输入框必须不带 focus。 */
+ * 弹窗是**自绘**的，因为两件事 showModal 都办不到（它只能传 title/content/showCancel/cancelText/
+ * cancelColor/confirmText/confirmColor/editable/placeholderText，位置与键盘行为不受控）：
+ *   1) 打开就自动聚焦 → 键盘马上弹出来，点一下就能改，少点一次；
+ *   2) 用键盘高度把自己顶到键盘上方（固定定位的蒙层不会跟着平台"上推页面"动，
+ *      所以还要把输入框的 adjust-position 关掉，免得重复位移）。 */
 const pageditJs = read(path.join(ROOT, 'utils', 'pagedit.js'))
-check('pagedit.js 导出四个入口', ['openPageDialog', 'inputPageDialog', 'closePageDialog', 'confirmPageDialog']
+check('pagedit.js 导出五个入口', ['openPageDialog', 'inputPageDialog', 'onDialogKeyboard', 'closePageDialog', 'confirmPageDialog']
   .every((k) => new RegExp('\\n  ' + k + ',').test(pageditJs)))
 // 注释里正解释"为什么不用 wx.showModal"，所以要先去掉注释再断言（否则注释会被当成代码）
 const pageditCode = pageditJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
-check('不再用 wx.showModal（它的 editable 会自动聚焦）', !pageditCode.includes('showModal'))
+check('不再用 wx.showModal（位置与键盘行为都不受控）', !pageditCode.includes('showModal'))
+check('键盘高度相同就忽略（官方 tip：这个事件会重复触发）', pageditJs.includes('page.data.pageKeyHeight === height'))
+check('关弹窗时键盘高度复位', /closePageDialog\(page\)\s*\{[\s\S]*?pageKeyHeight: 0/.test(pageditJs))
 check('解析规则只有一份（pagedit 复用 core.parsePageInput）', pageditJs.includes("require('./core')") && pageditJs.includes('core.parsePageInput'))
 check('core 里定义了并导出 parsePageInput', coreJsSrc.includes('function parsePageInput') && coreJsSrc.includes('parsePageInput,'))
 check('三个页面的页码都能点击编辑', [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
@@ -283,17 +287,26 @@ const dialogInputs = [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
   .map((s) => (s.match(/<textarea[^>]*class="page-dialog-input"[^>]*>/) || [''])[0])
 check('三个页面的弹窗都有输入框', dialogInputs.every((t) => t !== ''))
 check('弹窗输入框带 fixed（原生组件在 fixed 区域里要显式声明）', dialogInputs.every((t) => t.includes('fixed="{{true}}"')))
-check('弹窗输入框不带走键盘的 confirm-hold / hold-keyboard', dialogInputs.every((t) => !/hold-keyboard/.test(t) && !/confirm-hold/.test(t)))
+check('弹窗输入框打开就自动聚焦（少点一下，键盘立刻弹出来）',
+  dialogInputs.every((t) => t.includes('auto-focus="{{true}}"') && t.includes('focus="{{true}}"') ))
+check('关掉平台的上推页面（固定蒙层本来就动不了，开着会和自己的位移重复）', dialogInputs.every((t) => t.includes('adjust-position="{{false}}"')))
+check('输入框上接了键盘高度监听（focus 与 keyboardheightchange 同一个 handler）',
+  dialogInputs.every((t) => t.includes('bindkeyboardheightchange="onPageDialogKeyboard"') && t.includes('bindfocus="onPageDialogKeyboard"')))
+check('弹窗输入框不带走键盘的 confirm-hold / hold-keyboard（确定后要跟着收起来）', dialogInputs.every((t) => !/hold-keyboard/.test(t) && !/confirm-hold/.test(t)))
 check('弹窗有取消 / 确定两个按钮', [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
   .every((s) => /bindtap="closePageDialog"/.test(s) && /bindtap="confirmPageDialog"/.test(s)))
+// 蒙层用 padding-bottom 顶到键盘上方 + 过渡 → "跟着键盘平滑移动"
+check('蒙层靠 pageKeyHeight 抬高自己', [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
+  .every((s) => /class="page-dialog" style="padding-bottom: \{\{pageKeyHeight\}\}px"/.test(s)))
+check('抬高是带过渡的（平滑移动而不是硬跳）', /\.page-dialog\s*\{[\s\S]*?transition:\s*padding-bottom/.test(appWxssInput))
 check('弹窗样式已定义（蒙层固定 + 主题色确定键）', /\.page-dialog\s*\{[\s\S]*?position:\s*fixed/.test(appWxssInput)
   && /\.page-dialog-btn\.primary\s*\{[\s\S]*?background:\s*var\(--primary\)/.test(appWxssInput))
 ;['index', 'history', 'settings'].forEach((p) => {
   const src = read(path.join(ROOT, 'pages', p, p + '.js'))
   check('页面引入 pagedit：' + p, /require\('\.\.\/\.\.\/utils\/pagedit'\)/.test(src))
-  check('页面接了四个弹窗 handler：' + p, ['editPage', 'onPageDialogInput', 'closePageDialog', 'confirmPageDialog']
+  check('页面接了五个弹窗 handler：' + p, ['editPage', 'onPageDialogInput', 'onPageDialogKeyboard', 'closePageDialog', 'confirmPageDialog']
     .every((fn) => new RegExp(fn + '\\s*\\([\\s\\S]{0,90}?pagedit\\.').test(src)))
-  check('页面 data 里有弹窗状态：' + p, /pageDialog:\s*false/.test(src) && /pageTotal:\s*1/.test(src))
+  check('页面 data 里有弹窗状态：' + p, /pageDialog:\s*false/.test(src) && /pageTotal:\s*1/.test(src) && /pageKeyHeight:\s*0/.test(src))
 })
 check('主列表跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?view\.page = next[\s\S]{0,60}?this\.refresh\(\)/.test(indexJs))
 check('回收站跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?view\.page = next[\s\S]{0,60}?this\.refresh\(\)/.test(historyJs))

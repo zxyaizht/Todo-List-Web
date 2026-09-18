@@ -529,6 +529,9 @@ page {
   align-items: center;
   justify-content: center;
   background: rgba(15, 23, 42, 0.45);
+  /* 键盘弹出时用 padding-bottom 把卡片顶到键盘上方（见 WXML 里绑的 pageKeyHeight）。
+     固定定位的蒙层不会跟着平台"自动上推页面"动，所以自己来；加过渡让它平滑地跟着键盘走。 */
+  transition: padding-bottom 0.25s ease-out;
 }
 
 .page-dialog-card {
