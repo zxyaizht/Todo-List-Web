@@ -18,14 +18,13 @@ Page({
 
   // 同回收站：数据在 onLoad 备好，第一次绘制即完整
   onLoad() {
-    perf.sinceTap('settings onLoad 开始')
-    const t = perf.start()
+    perf.mark('settings onLoad 开始')
     this.refresh()
-    perf.step(t, 'settings 数据准备')
+    perf.mark('settings 数据就绪')
   },
 
   onReady() {
-    perf.sinceTap('settings 首次渲染完成')
+    perf.finish('设置')
   },
 
   refresh() {

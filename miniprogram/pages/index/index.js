@@ -55,14 +55,16 @@ Page({
 
   // 首屏在 onLoad 里就渲染好，避免启动后"先空白再填充"
   onLoad() {
+    perf.mark('index onLoad 开始')
     selectedPriority = store.loadPriority()
     this.setData({ priority: selectedPriority, themeStyle: app.globalData.themeStyle })
     this.refresh()
     this.loaded = true
+    perf.mark('index 数据就绪')
   },
 
   onReady() {
-    perf.sinceTap('index 首次渲染完成')
+    perf.finish('主列表首屏')
   },
 
   // onShow 仍要刷新：从设置改完主题、或从回收站恢复任务回来，数据都可能变了。

@@ -2,13 +2,16 @@
  * 设计令牌沿用网页版 style.css，几何尺寸换算成 rpx（1px ≈ 2rpx @375pt） */
 
 page {
+  /* 这里的静态值 = 默认主题色 #2563eb 由 core.deriveShades() 推导出的结果。
+     主题是默认色时页面不加内联 CSS 变量（见 app.js），靠的就是这套静态值，
+     两者必须保持一致；换主题时才写内联变量覆盖。 */
   --primary: #2563eb;
   --primary-rgb: 37, 99, 235;
-  --primary-dark: #1d4ed8;
-  --primary-light: #dbeafe;
-  --primary-soft: #eff6ff;
-  --app-bg: #eef4ff;
-  --app-bg-2: #dbe7fd;
+  --primary-dark: #1249c1;
+  --primary-light: #c5d6fb;
+  --primary-soft: #e7eefd;
+  --app-bg: #ecf1fe;
+  --app-bg-2: #c8d9fe;
   --card-bg: #ffffff;
   --text: #1e293b;
   --text-muted: #64748b;

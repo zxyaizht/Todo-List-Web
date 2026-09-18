@@ -3,6 +3,9 @@ const store = require('./utils/storage')
 const sound = require('./utils/sound')
 const perf = require('./utils/perf')
 
+// 默认主题色（与 app.wxss 里 page{} 的静态变量值一致）
+const DEFAULT_THEME = '#2563eb'
+
 App({
   globalData: {
     theme: '#2563eb',
@@ -22,9 +25,12 @@ App({
 
   // 应用主题色：算出 CSS 变量串供页面根节点用，同时同步导航栏颜色
   applyTheme(hex) {
-    const color = core.parseColor(hex) || '#2563eb'
+    const color = core.parseColor(hex) || DEFAULT_THEME
     this.globalData.theme = color
-    this.globalData.themeStyle = core.themeStyleVars(color)
+    // 默认蓝色时**不写内联变量**：app.wxss 里 page{} 的静态值就是它，
+    // 这样省掉每次渲染都要重算整页 CSS 变量的开销；换主题时才写内联覆盖。
+    this.globalData.themeStyle =
+      String(color).toLowerCase() === DEFAULT_THEME ? '' : core.themeStyleVars(color)
     try {
       wx.setNavigationBarColor({
         // 主题色偏亮时用黑字，否则白字
