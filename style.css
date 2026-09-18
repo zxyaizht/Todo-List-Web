@@ -214,47 +214,6 @@ body {
   margin-bottom: 0.9rem;
 }
 
-.stats-summary {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--primary-soft);
-  border-radius: var(--radius-sm);
-  font-size: 0.82rem;
-}
-
-.stat-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.active-dot {
-  background: var(--primary);
-}
-
-.done-dot {
-  background: var(--success);
-}
-
-.stat-num {
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--text);
-}
-
-.stat-label {
-  color: var(--text-muted);
-}
-
 /* ── Search box ── */
 
 .todo-search {
@@ -578,10 +537,13 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 排序小标志：任务列表左上方 */
+/* 排序小标志 + 优先级筛选器：同一行，标志在左、筛选器在右 */
 .list-toolbar {
   display: flex;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
   margin-bottom: 0.55rem;
 }
 
@@ -656,6 +618,57 @@ body {
   font-weight: 600;
 }
 
+/* 优先级筛选器：选项沿用添加任务时的高 / 中 / 低配色，外加一个「全部」取消筛选 */
+.priority-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.priority-filter-title {
+  font-size: 0.78rem;
+  color: var(--text-light);
+  margin-right: 0.15rem;
+}
+
+.priority-filter-option {
+  padding: 0.35rem 0.65rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--primary-soft);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.priority-filter-option.priority-high {
+  color: var(--priority-high);
+  background: var(--priority-high-soft);
+}
+
+.priority-filter-option.priority-medium {
+  color: var(--priority-medium);
+  background: var(--priority-medium-soft);
+}
+
+.priority-filter-option.priority-low {
+  color: var(--priority-low);
+  background: var(--priority-low-soft);
+}
+
+.priority-filter-option:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.priority-filter-option.active {
+  border-color: currentColor;
+  box-shadow: var(--shadow-sm);
+}
+
 /* 清空 + 筛选：一排五个（清空已完成 / 已完成 / 未完成 / 全部 / 全部清空） */
 
 .todo-clear-actions {
@@ -674,6 +687,20 @@ body {
 }
 
 /* 列表底部那一组：改为上边距（当前已不再渲染底部重复组，保留样式无副作用） */
+/* 等宽：主列表 8 个按钮（两行各 4 个）统一大小，历史窗口的清空行同样四等分 */
+.todo-clear-actions-main .action-group,
+.todo-clear-actions .action-group-clear {
+  flex-wrap: nowrap;
+}
+
+.todo-clear-actions-main button,
+.todo-clear-actions .action-group-clear button {
+  flex: 1 1 0;
+  padding: 0.8rem 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .todo-clear-actions.bottom {
   margin-top: 1rem;
   margin-bottom: 0;
@@ -695,34 +722,25 @@ body {
   transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
 }
 
-.btn-clear-done {
-  color: var(--danger);
-  background: var(--danger-soft);
+/* 清空系列：统一跟随主题色（原先是固定红 / 琥珀，现在跟随主题），且深浅一致
+   —— 清空全部 / 全部清空 也用同一套浅色底，只在文字上区分，不再做实心强调 */
+.btn-clear-done,
+.btn-clear-incomplete,
+.btn-complete-clear,
+.btn-clear-all,
+.btn-clear-all-tasks {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: rgba(var(--primary-rgb), 0.25);
 }
 
-.btn-clear-done:hover {
-  background: #fee2e2;
-  border-color: #fecaca;
-}
-
-.btn-clear-incomplete {
-  color: #b45309;
-  background: #fef3c7;
-}
-
-.btn-clear-incomplete:hover {
-  background: #fde68a;
-  border-color: #fcd34d;
-}
-
-.btn-clear-all {
-  color: var(--text-muted);
-  background: #f8fafc;
-}
-
-.btn-clear-all:hover {
-  background: #f1f5f9;
-  border-color: var(--border);
+.btn-clear-done:hover,
+.btn-clear-incomplete:hover,
+.btn-complete-clear:hover,
+.btn-clear-all:hover,
+.btn-clear-all-tasks:hover {
+  background: rgba(var(--primary-rgb), 0.16);
+  border-color: rgba(var(--primary-rgb), 0.45);
 }
 
 .btn-restore-all,
@@ -765,7 +783,9 @@ body {
 
 .btn-clear-done:active,
 .btn-clear-incomplete:active,
+.btn-complete-clear:active,
 .btn-clear-all:active,
+.btn-clear-all-tasks:active,
 .btn-restore-all:active,
 .btn-restore-done:active,
 .btn-restore-incomplete:active,
@@ -796,21 +816,6 @@ body {
   transform: scale(0.98);
 }
 
-/* 主列表「清空全部」：把所有任务移入回收站，强烈危险操作（深红实心） */
-.btn-clear-all-tasks {
-  color: #fff;
-  background: #dc2626;
-  border-color: #dc2626;
-}
-
-.btn-clear-all-tasks:hover {
-  background: #b91c1c;
-  border-color: #b91c1c;
-}
-
-.btn-clear-all-tasks:active {
-  transform: scale(0.98);
-}
 
 /* 分页控件：主列表每页最多 5 条，页码可点击编辑跳转 */
 .pagination {

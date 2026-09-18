@@ -679,8 +679,8 @@ function escapeAttr(str) {
  *   view = { search, filter }
  * 数据读写则由 store 决定（主列表读写 todo-list-items，历史记录读写 todo-history-items）。 */
 
-const mainView = { search: '', filter: 'all', sort: 'default', page: 1, paginate: true }
-const historyView = { search: '', filter: 'all', page: 1, paginate: true }
+const mainView = { search: '', filter: 'all', sort: 'default', priority: 'all', page: 1, paginate: true }
+const historyView = { search: '', filter: 'all', sort: 'default', priority: 'all', page: 1, paginate: true }
 
 const EMPTY_MAIN = { icon: '🎉', title: '清单空空如也', desc: '添加第一个任务，开启高效一天吧！' }
 const EMPTY_HISTORY = { icon: '🗑️', title: '回收站是空的', desc: '删除任务后，它们会先放到这里，可随时恢复' }
@@ -690,16 +690,23 @@ const EMPTY_HISTORY = { icon: '🗑️', title: '回收站是空的', desc: '删
 const FILTER_ORDER = ['all', 'done', 'active']
 const FILTER_LABELS = { done: '已完成', active: '未完成', all: '全部' }
 
+/* ── 优先级筛选（放在排序同一行的右侧） ──
+ * 选项沿用「添加任务时设置优先级」的高 / 中 / 低，额外加一个「全部」用于取消筛选。
+ * 与筛选、排序一样属视图状态，不持久化。 */
+const PRIORITY_FILTER_ORDER = ['all', 'high', 'medium', 'low']
+const PRIORITY_FILTER_LABELS = { all: '全部', high: '高', medium: '中', low: '低' }
+
 /* ── 列表排序 ──
  * 只影响「显示顺序」，不改动 localStorage 里的数组顺序（LIFO 存储顺序始终保留）。
  * default = 不排序，按添加顺序（新任务在前）；刷新后回到 default（与筛选一致，属视图状态、不做持久化）。 */
-const SORT_ORDER = ['time-desc', 'time-asc', 'priority-desc', 'priority-asc', 'name-asc']
+const SORT_ORDER = ['time-desc', 'time-asc', 'priority-desc', 'priority-asc', 'name-asc', 'name-desc']
 const SORT_LABELS = {
   'time-desc': '按照时间降序',
   'time-asc': '按照时间升序',
   'priority-desc': '按照优先级降序',
   'priority-asc': '按照优先级升序',
-  'name-asc': '按照名称排序',
+  'name-asc': '按照名称升序',
+  'name-desc': '按照名称降序',
 }
 // 小标志上显示的短标签（默认就叫「排序」）
 const SORT_SHORT = {
@@ -707,18 +714,26 @@ const SORT_SHORT = {
   'time-asc': '时间 ↑',
   'priority-desc': '优先级 ↓',
   'priority-asc': '优先级 ↑',
-  'name-asc': '名称 A-Z',
+  'name-asc': '名称 ↑',
+  'name-desc': '名称 ↓',
 }
+/* 名称排序：中文按拼音、英文按 a-z，交给 Intl.Collator 处理
+ * numeric —— 「任务 2」排在「任务 10」前面；sensitivity: 'base' —— 忽略大小写与声调差异。 */
+const NAME_COLLATOR = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
 const DEFAULT_SORT = 'default'
 const PRIORITY_RANK = { high: 3, medium: 2, low: 1 }
 
-// 任务列表左上方的小标志：点击展开四种排序方式，选中即对当前列表生效
-function sortMenuHTML(view) {
+// 任务列表上方一行：左侧是排序小标志，右侧是优先级筛选器（选项与添加任务时的优先级一致）
+function listToolbarHTML(view) {
   const current = view.sort || DEFAULT_SORT
   const label = SORT_SHORT[current] || '排序'
   const options = SORT_ORDER.map(
     (s) =>
       `<button type="button" class="sort-option${current === s ? ' active' : ''}" data-action="sort-pick" data-sort="${s}" role="option" aria-selected="${current === s}">${SORT_LABELS[s]}</button>`
+  ).join('')
+  const priorityOptions = PRIORITY_FILTER_ORDER.map(
+    (p) =>
+      `<button type="button" class="priority-filter-option priority-${p}${view.priority === p ? ' active' : ''}" data-action="filter-priority" data-priority-filter="${p}" aria-pressed="${view.priority === p}">${PRIORITY_FILTER_LABELS[p]}</button>`
   ).join('')
   return `
       <div class="list-toolbar">
@@ -732,6 +747,10 @@ function sortMenuHTML(view) {
           </button>
           <div class="sort-menu" role="listbox">${options}</div>
         </div>
+        <div class="priority-filter" role="group" aria-label="按优先级筛选">
+          <span class="priority-filter-title">优先级</span>
+          ${priorityOptions}
+        </div>
       </div>`
 }
 
@@ -741,8 +760,11 @@ function matchesFilter(todo, filter) {
   return true
 }
 
-function getFilteredTodos(todos, filter) {
-  return filter === 'all' ? todos.slice() : todos.filter((t) => matchesFilter(t, filter))
+// 先按完成状态筛选，再按优先级筛选（优先级为空/'all' 时不过滤）
+function getFilteredTodos(todos, filter, priority) {
+  let list = filter === 'all' ? todos.slice() : todos.filter((t) => matchesFilter(t, filter))
+  if (priority && priority !== 'all') list = list.filter((t) => t.priority === priority)
+  return list
 }
 
 function filterButtonsHTML(view) {
@@ -752,34 +774,55 @@ function filterButtonsHTML(view) {
   ).join('')
 }
 
-// 清空 + 筛选按钮行：只渲染在列表「上方」一组（用户要求保留最上方那组、去掉列表下方的重复组）。
-// 组内分两段，用 .action-group 包成独立一行：
-//   上一段 = 筛选（全部/已完成/未完成）+ 完成所有（主列表）或 恢复组（历史）；
-//   下一段 = 清空类按钮（清空已完成 / 清空未完成 / 清空全部 | 全部清空）。
-// 主列表（withRestore=false，7 个按钮）：[全部|已完成|未完成|完成所有] 一行，[清空已完成|清空未完成|清空全部] 一行
-// 历史记录（withRestore=true，9 个按钮）：[全部|已完成|未完成|恢复已完成|恢复未完成|恢复全部] 一行，[清空已完成|清空未完成|全部清空] 一行
-// 清空按钮点击时都要二次确认；恢复按钮无需确认（无损操作）。
+// 操作行只渲染在列表「上方」一组（用户要求保留最上方那组、去掉列表下方的重复组）。
+// 组内分两段，用 .action-group 包成独立一行；主列表每段 4 个按钮、等宽（用户要求大小统一）。
+// 主列表（withRestore=false，8 个按钮）：
+//   第一行：全部 | 完成所有 | 已完成(N) | 未完成(N)
+//   第二行：清空全部 | 完成所有并清空 | 清空已完成 | 清空未完成
+// 历史记录（withRestore=true，9 个按钮）：维持 [筛选×3 + 恢复×3] / [清空×3] 两行，不做改动。
+// 「已完成 / 未完成」上的计数取代了原先优先级行右侧的统计胶囊（数量显示已合并进按钮）。
+// 清空类按钮点击时都要二次确认；恢复按钮无需确认（无损操作）。
 function clearActionsHTML(view, completed, total, withRestore = false) {
   if (total === 0) return ''
   const incomplete = total - completed
-  const mainGroup = `
+
+  if (withRestore) {
+    return `
+      <div class="todo-clear-actions">
         <div class="action-group">
           ${filterButtonsHTML(view)}
-          ${!withRestore ? `<button class="btn-complete-all" data-action="complete-all" ${incomplete === 0 ? 'disabled' : ''}>✅ 完成所有${incomplete > 0 ? ` (${incomplete})` : ''}</button>` : ''}
-          ${withRestore ? restoreButtonsHTML(completed, incomplete) : ''}
-        </div>`
-  const clearGroup = `
+          ${restoreButtonsHTML(completed, incomplete)}
+        </div>
         <div class="action-group action-group-clear">
+          <button class="btn-clear-all" data-action="clear-all" ${total === 0 ? 'disabled' : ''}>⚡ 全部清空</button>
+          <button class="btn-complete-clear" data-action="complete-clear" ${total === 0 ? 'disabled' : ''}>✅ 完成所有并清空</button>
           <button class="btn-clear-done" data-action="clear-done" ${completed === 0 ? 'disabled' : ''}>🗑️ 清空已完成${completed > 0 ? ` (${completed})` : ''}</button>
           <button class="btn-clear-incomplete" data-action="clear-incomplete" ${incomplete === 0 ? 'disabled' : ''}>🧹 清空未完成${incomplete > 0 ? ` (${incomplete})` : ''}</button>
-          ${!withRestore ? `<button class="btn-clear-all-tasks" data-action="clear-all-tasks" ${total === 0 ? 'disabled' : ''}>⚡ 清空全部</button>` : ''}
-          ${withRestore ? `<button class="btn-clear-all" data-action="clear-all" ${total === 0 ? 'disabled' : ''}>⚡ 全部清空</button>` : ''}
-        </div>`
-  return `
-      <div class="todo-clear-actions">
-        ${mainGroup}
-        ${clearGroup}
+        </div>
       </div>`
+  }
+
+  return `
+      <div class="todo-clear-actions todo-clear-actions-main">
+        <div class="action-group">
+          ${mainFilterButtonHTML(view, 'all', '全部')}
+          <button class="btn-complete-all" data-action="complete-all" ${incomplete === 0 ? 'disabled' : ''}>✅ 完成所有${incomplete > 0 ? ` (${incomplete})` : ''}</button>
+          ${mainFilterButtonHTML(view, 'done', '已完成', completed)}
+          ${mainFilterButtonHTML(view, 'active', '未完成', incomplete)}
+        </div>
+        <div class="action-group action-group-clear">
+          <button class="btn-clear-all-tasks" data-action="clear-all-tasks" ${total === 0 ? 'disabled' : ''}>⚡ 清空全部</button>
+          <button class="btn-complete-clear" data-action="complete-clear" ${total === 0 ? 'disabled' : ''}>✅ 完成所有并清空</button>
+          <button class="btn-clear-done" data-action="clear-done" ${completed === 0 ? 'disabled' : ''}>🗑️ 清空已完成${completed > 0 ? ` (${completed})` : ''}</button>
+          <button class="btn-clear-incomplete" data-action="clear-incomplete" ${incomplete === 0 ? 'disabled' : ''}>🧹 清空未完成${incomplete > 0 ? ` (${incomplete})` : ''}</button>
+        </div>
+      </div>`
+}
+
+// 主列表的筛选按钮：已完成 / 未完成 上直接带数量（原先统计胶囊的数量显示已合并到这里）
+function mainFilterButtonHTML(view, value, label, count) {
+  const text = typeof count === 'number' ? `${label} (${count})` : label
+  return `<button type="button" class="btn-filter${view.filter === value ? ' active' : ''}" data-action="filter" data-filter="${value}" aria-pressed="${view.filter === value}">${text}</button>`
 }
 
 // 历史记录窗口里的「恢复」按钮组：把回收站里符合条件的条目放回原处（任务→待办，颜色→自定义色）
@@ -890,14 +933,16 @@ function sortVisibleItems(visible, sort) {
     // 同一优先级内按创建时间从新到旧，保证档内顺序稳定可预期
     'priority-desc': (a, b) => rankOf(b.todo) - rankOf(a.todo) || timeOf(b.todo) - timeOf(a.todo),
     'priority-asc': (a, b) => rankOf(a.todo) - rankOf(b.todo) || timeOf(b.todo) - timeOf(a.todo),
-    'name-asc': (a, b) => String(a.todo.text).localeCompare(String(b.todo.text), 'zh-CN') || timeOf(b.todo) - timeOf(a.todo),
+    // 名称：中文按拼音、英文按字母序（Intl.Collator 已处理两种文字与数字序号）
+    'name-asc': (a, b) => NAME_COLLATOR.compare(a.todo.text, b.todo.text),
+    'name-desc': (a, b) => NAME_COLLATOR.compare(b.todo.text, a.todo.text),
   }
   const cmp = comparators[sort]
   return cmp ? visible.slice().sort(cmp) : visible
 }
 
 function getVisibleItems(todos, view) {
-  const scoped = getFilteredTodos(todos, view.filter)
+  const scoped = getFilteredTodos(todos, view.filter, view.priority)
   const q = view.search.trim()
   let visible
   if (!q) {
@@ -1075,7 +1120,8 @@ function updateSearchHint(hintEl, matchCount, scopeCount, view) {
     hintEl.innerHTML = ''
     return
   }
-  const scopePrefix = view.filter === 'all' ? '' : '当前筛选范围内 '
+  const isScoped = view.filter !== 'all' || (view.priority && view.priority !== 'all')
+  const scopePrefix = isScoped ? '当前筛选范围内 ' : ''
   hintEl.classList.add('show')
   hintEl.classList.toggle('no-match', matchCount === 0)
   hintEl.innerHTML =
@@ -1090,7 +1136,7 @@ function renderListView(store, view) {
   if (!list) return
   const items = store.read()
   list.innerHTML = listHTML(items, view, store.empty, store.itemRenderer)
-  updateSearchHint(store.hintEl(), getVisibleItems(items, view).length, getFilteredTodos(items, view.filter).length, view)
+  updateSearchHint(store.hintEl(), getVisibleItems(items, view).length, getFilteredTodos(items, view.filter, view.priority).length, view)
   // 分页控件与列表同属一个容器：只在当前列表的父容器里找 pagination-wrap，避免主列表与历史记录互相串台
   const container = list.parentElement
   const pagWrap = container.querySelector('#pagination-wrap')
@@ -1143,18 +1189,6 @@ function render() {
 
       <div class="todo-stats">
         ${prioritySelectHTML()}
-        <div class="stats-summary">
-          <div class="stat">
-            <span class="stat-dot done-dot"></span>
-            <span class="stat-num">${completed}</span>
-            <span class="stat-label">已完成</span>
-          </div>
-          <div class="stat">
-            <span class="stat-dot active-dot"></span>
-            <span class="stat-num">${active}</span>
-            <span class="stat-label">未完成</span>
-          </div>
-        </div>
       </div>
 
       <div class="todo-tools">
@@ -1170,7 +1204,7 @@ function render() {
       <p class="search-hint" id="search-hint"></p>
 
       ${clearActionsHTML(mainView, completed, todos.length)}
-      ${todos.length > 0 ? sortMenuHTML(mainView) : ''}
+      ${todos.length > 0 ? listToolbarHTML(mainView) : ''}
 
       <ul class="todo-list" id="todo-list">
         ${listHTML(todos, mainView, EMPTY_MAIN, todoItemHTML)}
@@ -1200,7 +1234,7 @@ function render() {
     updateSearchHint(
       document.querySelector('#search-hint'),
       getVisibleItems(todos, mainView).length,
-      getFilteredTodos(todos, mainView.filter).length,
+      getFilteredTodos(todos, mainView.filter, mainView.priority).length,
       mainView
     )
     if (wasSearchFocused) {
@@ -1284,6 +1318,8 @@ function bindEvents() {
     saveTodos(todos)
     // 新任务一定是未完成，若当前正筛选「已完成」则看不到它，自动切回「全部」
     if (mainView.filter === 'done') mainView.filter = 'all'
+    // 同理：若优先级筛选会挡住这条新任务，自动取消优先级筛选
+    if (mainView.priority !== 'all' && mainView.priority !== selectedPriority) mainView.priority = 'all'
     playSound('add')
     input.value = ''
     render()
@@ -1468,6 +1504,19 @@ function bindViewControls(root, view, store) {
     })
   }
 
+  // 优先级筛选（排序同一行右侧）：与主列表筛选一样只影响显示，切换后回到第一页
+  root.querySelectorAll('.priority-filter-option').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault())
+    btn.addEventListener('click', () => {
+      const value = btn.dataset.priorityFilter
+      if (!value || value === view.priority) return
+      view.priority = value
+      view.page = 1
+      playSound('priority')
+      store.render()
+    })
+  })
+
   // 列表上方与下方各有一组，必须全部绑定
   root.querySelectorAll('.btn-clear-done').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1513,6 +1562,21 @@ function bindViewControls(root, view, store) {
       if (btn.disabled) return
       openConfirm(store.confirmTitle, store.confirmDesc, () => {
         pushToHistory(store.read(), store)
+        store.write([])
+        playSound('clearAll')
+        store.render()
+      })
+    })
+  })
+
+  // 主列表「完成所有并清空」：先把每项都打上勾，再整体移入回收站（历史里保留为已完成）
+  root.querySelectorAll('.btn-complete-clear').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return
+      openConfirm(store.completeClearTitle, store.completeClearDesc, () => {
+        const all = store.read()
+        all.forEach((t) => { t.done = true })
+        pushToHistory(all, store)
         store.write([])
         playSound('clearAll')
         store.render()
@@ -1591,7 +1655,13 @@ function loadHistory() {
     const raw = localStorage.getItem(HISTORY_KEY)
     const list = raw ? JSON.parse(raw) : []
     return Array.isArray(list)
-      ? list.map((t) => ({ ...t, priority: t.priority || 'medium', done: Boolean(t.done) }))
+      ? list.map((t) => ({
+          ...t,
+          priority: t.priority || 'medium',
+          done: Boolean(t.done),
+          // 历史条目原先只存了 deletedAt；这里用删除时间兜底，让「按照时间」排序在历史窗口也有意义
+          createdAt: t.createdAt || t.deletedAt || 0,
+        }))
       : []
   } catch {
     return []
@@ -1612,6 +1682,7 @@ function pushToHistory(items, store) {
     done: Boolean(t.done),
     priority: t.priority || 'medium',
     kind: t.kind, // 'color' 表示被删除的自定义颜色
+    createdAt: t.createdAt, // 保留创建时间，历史窗口的「按照时间」排序才有依据
     deletedAt: Date.now(),
   }))
   history.unshift(...stamped)
@@ -1723,6 +1794,7 @@ function renderHistory() {
       ${searchBoxHTML(historyView, 'history-search', '搜索历史记录（实时模糊匹配）')}
       <p class="search-hint" id="history-hint"></p>
       ${clearActionsHTML(historyView, completed, items.length, true)}
+      ${items.length > 0 ? listToolbarHTML(historyView) : ''}
       <ul class="todo-list history-list" id="history-list">
         ${listHTML(items, historyView, EMPTY_HISTORY, historyItemHTML)}
       </ul>
@@ -1733,7 +1805,7 @@ function renderHistory() {
   updateSearchHint(
     body.querySelector('#history-hint'),
     getVisibleItems(items, historyView).length,
-    getFilteredTodos(items, historyView.filter).length,
+    getFilteredTodos(items, historyView.filter, historyView.priority).length,
     historyView
   )
 
@@ -1801,6 +1873,8 @@ const mainStore = {
   clearDoneDesc: '已完成的任务将被移入历史记录，可随时恢复。',
   clearIncompleteTitle: '确认清空未完成',
   clearIncompleteDesc: '未完成的任务将被移入历史记录，可随时恢复。',
+  completeClearTitle: '确认完成所有并清空',
+  completeClearDesc: '全部任务会先标记为已完成，再一起移入历史记录，可随时恢复。',
   confirmTitle: '确认全部清空',
   confirmDesc: '所有任务（含未完成）将被移入历史记录，但原顺序不可恢复。',
 }
@@ -1821,6 +1895,8 @@ const historyStore = {
   clearDoneDesc: '将从回收站永久删除已完成的记录，无法恢复。',
   clearIncompleteTitle: '确认清空未完成',
   clearIncompleteDesc: '将从回收站永久删除未完成的记录，无法恢复。',
+  completeClearTitle: '确认完成所有并清空',
+  completeClearDesc: '回收站里的记录会先标记为已完成，再被永久删除，无法恢复。',
   confirmTitle: '确认清空历史记录',
   confirmDesc: '这将永久删除回收站中的全部记录，无法恢复。',
 }

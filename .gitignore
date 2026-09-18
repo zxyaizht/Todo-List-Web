@@ -26,3 +26,6 @@ dist-ssr
 # Local agent tooling / memory (not part of the project)
 .workbuddy/
 .env
+
+# Electron 打包产物（体积大，不进仓库）
+release/
