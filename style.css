@@ -566,6 +566,96 @@ body {
   transform: scale(0.92);
 }
 
+/* 添加日期：显示在任务名右侧 */
+.todo-date {
+  flex-shrink: 0;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text-light);
+  background: var(--primary-soft);
+  border-radius: 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 排序小标志：任务列表左上方 */
+.list-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.55rem;
+}
+
+.sort-wrap {
+  position: relative;
+}
+
+.btn-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+
+.btn-sort:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-sort .sort-label {
+  font-weight: 600;
+}
+
+.sort-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 60;
+  display: none;
+  min-width: 10.5rem;
+  padding: 0.3rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+.sort-menu.open {
+  display: block;
+}
+
+.sort-option {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sort-option:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.sort-option.active {
+  color: var(--primary);
+  font-weight: 600;
+}
+
 /* 清空 + 筛选：一排五个（清空已完成 / 已完成 / 未完成 / 全部 / 全部清空） */
 
 .todo-clear-actions {
@@ -575,7 +665,15 @@ body {
   margin-bottom: 0.9rem;
 }
 
-/* 列表底部那一组：改为上边距 */
+/* 操作行内分段：上一段=筛选+完成所有/恢复，下一段=清空类；各自占满一行形成两行布局 */
+.action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1 0 100%;
+}
+
+/* 列表底部那一组：改为上边距（当前已不再渲染底部重复组，保留样式无副作用） */
 .todo-clear-actions.bottom {
   margin-top: 1rem;
   margin-bottom: 0;
@@ -681,6 +779,141 @@ body {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+/* 主列表「完成所有」：勾选全部任务，使用成功绿 */
+.btn-complete-all {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.btn-complete-all:hover {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.btn-complete-all:active {
+  transform: scale(0.98);
+}
+
+/* 主列表「清空全部」：把所有任务移入回收站，强烈危险操作（深红实心） */
+.btn-clear-all-tasks {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.btn-clear-all-tasks:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.btn-clear-all-tasks:active {
+  transform: scale(0.98);
+}
+
+/* 分页控件：主列表每页最多 5 条，页码可点击编辑跳转 */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0.9rem 0 0.2rem;
+  flex-wrap: wrap;
+}
+
+.page-btn {
+  min-width: 0;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-muted);
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.page-btn:hover:not(:disabled) {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: var(--primary-light);
+}
+
+.page-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.page-indicator {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.page-current {
+  color: var(--primary);
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-sm);
+  cursor: text;
+  border: 1px dashed transparent;
+  min-width: 1.2rem;
+  text-align: center;
+  display: inline-block;
+}
+
+.page-current:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary-light);
+}
+
+.page-edit-input {
+  width: 2.4rem;
+  text-align: center;
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.2rem;
+  outline: none;
+}
+
+/* 设置里「自定义色」下方的「全部删除」按钮 */
+.custom-color-actions {
+  margin-top: 0.9rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-clear-all-colors {
+  padding: 0.55rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.btn-clear-all-colors:hover {
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.btn-clear-all-colors:active {
+  transform: scale(0.98);
 }
 
 .modal-overlay {
@@ -1093,111 +1326,6 @@ body {
 
 .toggle-switch input:checked + .toggle-slider::before {
   transform: translateX(20px);
-}
-
-/* ── 排序控件 ── */
-
-.sort-control {
-  position: relative;
-  flex: 0 0 auto;
-}
-
-.btn-sort {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.75rem 0.9rem;
-  font-size: 0.86rem;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--primary);
-  background: var(--primary-soft);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.2s, border-color 0.2s, transform 0.1s;
-}
-
-.btn-sort:hover {
-  background: var(--primary-light);
-  border-color: var(--primary);
-}
-
-.btn-sort:active {
-  transform: scale(0.98);
-}
-
-.sort-label-text {
-  max-width: 7rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sort-dropdown {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  right: 0;
-  min-width: 160px;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-lg);
-  z-index: 60;
-  padding: 0.35rem;
-  display: none;
-  flex-direction: column;
-  gap: 0.2rem;
-  animation: sortDropIn 0.18s ease-out;
-}
-
-.sort-dropdown.show {
-  display: flex;
-}
-
-@keyframes sortDropIn {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.sort-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.86rem;
-  font-weight: 500;
-  font-family: inherit;
-  color: var(--text);
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.2s, color 0.2s;
-}
-
-.sort-option:hover {
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.sort-option.active {
-  color: var(--primary);
-  background: var(--primary-soft);
-  font-weight: 700;
-}
-
-.sort-option svg {
-  flex-shrink: 0;
 }
 
 /* ── 搜索行 + 历史记录入口 ── */

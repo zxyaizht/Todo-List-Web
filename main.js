@@ -4,7 +4,6 @@ const STORAGE_KEY = 'todo-list-items'
 const HISTORY_KEY = 'todo-history-items'
 const THEME_KEY = 'todo-theme-color'
 const SOUND_KEY = 'todo-sound-settings'
-const SORT_KEY = 'todo-sort'
 const PRIORITY_KEY = 'todo-priority'
 const COLORS_KEY = 'todo-custom-colors'
 const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' }
@@ -148,6 +147,21 @@ function deleteCustomColor(hex) {
   const remaining = loadCustomColors().filter((c) => c.toLowerCase() !== target)
   localStorage.setItem(COLORS_KEY, JSON.stringify(remaining))
   pushToHistory([{ id: `color-${Date.now()}`, text: target, done: false, priority: 'medium', kind: 'color' }])
+}
+
+// 全部删除自定义色：一次性把每条自定义色都移入回收站（kind: 'color'），再清空列表
+function clearAllCustomColors() {
+  const colors = loadCustomColors()
+  if (!colors.length) return
+  const items = colors.map((c, i) => ({
+    id: `color-${Date.now()}-${i}`,
+    text: c.toLowerCase(),
+    done: false,
+    priority: 'medium',
+    kind: 'color',
+  }))
+  pushToHistory(items)
+  localStorage.setItem(COLORS_KEY, JSON.stringify([]))
 }
 
 // 从回收站恢复自定义色
@@ -447,6 +461,7 @@ function renderMainSettings() {
         <input type="text" class="custom-color-input" id="custom-color-input" placeholder="ff8800 / 255,0,0 / red" value="${currentTheme}">
       </div>
       ${renderCustomColorHistory(currentTheme)}
+      ${loadCustomColors().length ? `<div class="custom-color-actions"><button type="button" class="btn-clear-all-colors" data-action="clear-all-colors">🗑️ 全部删除</button></div>` : ''}
     </div>
 
     <div class="settings-section">
@@ -506,6 +521,17 @@ function bindMainSettings() {
       renderSettingsBody()
     })
   })
+
+  // 「全部删除」：把所有自定义色一次性移入回收站，并清空自定义色列表
+  const clearAllColorsBtn = body.querySelector('[data-action="clear-all-colors"]')
+  if (clearAllColorsBtn) {
+    clearAllColorsBtn.addEventListener('click', () => {
+      clearAllCustomColors()
+      render() // 让主界面的「历史记录 (N)」计数同步
+      if (historyPanel) renderHistory() // 历史窗口若开着，同步刷新
+      renderSettingsBody()
+    })
+  }
 
   const colorPicker = body.querySelector('#custom-color-picker')
   const colorInput = body.querySelector('#custom-color-input')
@@ -618,7 +644,12 @@ function loadTodos() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const list = raw ? JSON.parse(raw) : []
-    return list.map((t) => ({ ...t, priority: t.priority || 'medium' }))
+    return list.map((t) => ({
+      ...t,
+      priority: t.priority || 'medium',
+      // 老数据没有 createdAt：任务 id 本身就是 Date.now() 生成的，可直接复用；否则记为 0（视为最早、排序时垫底）
+      createdAt: t.createdAt || (Number.isFinite(Number(t.id)) && Number(t.id) > 1e12 ? Number(t.id) : 0),
+    }))
   } catch {
     return []
   }
@@ -648,8 +679,8 @@ function escapeAttr(str) {
  *   view = { search, filter }
  * 数据读写则由 store 决定（主列表读写 todo-list-items，历史记录读写 todo-history-items）。 */
 
-const mainView = { search: '', filter: 'all' }
-const historyView = { search: '', filter: 'all' }
+const mainView = { search: '', filter: 'all', sort: 'default', page: 1, paginate: true }
+const historyView = { search: '', filter: 'all', page: 1, paginate: true }
 
 const EMPTY_MAIN = { icon: '🎉', title: '清单空空如也', desc: '添加第一个任务，开启高效一天吧！' }
 const EMPTY_HISTORY = { icon: '🗑️', title: '回收站是空的', desc: '删除任务后，它们会先放到这里，可随时恢复' }
@@ -658,6 +689,49 @@ const EMPTY_HISTORY = { icon: '🗑️', title: '回收站是空的', desc: '删
  * 展示顺序（左→右）：全部 / 已完成 / 未完成 */
 const FILTER_ORDER = ['all', 'done', 'active']
 const FILTER_LABELS = { done: '已完成', active: '未完成', all: '全部' }
+
+/* ── 列表排序 ──
+ * 只影响「显示顺序」，不改动 localStorage 里的数组顺序（LIFO 存储顺序始终保留）。
+ * default = 不排序，按添加顺序（新任务在前）；刷新后回到 default（与筛选一致，属视图状态、不做持久化）。 */
+const SORT_ORDER = ['time-desc', 'time-asc', 'priority-desc', 'priority-asc']
+const SORT_LABELS = {
+  'time-desc': '按照时间降序',
+  'time-asc': '按照时间升序',
+  'priority-desc': '按照优先级降序',
+  'priority-asc': '按照优先级升序',
+}
+// 小标志上显示的短标签（默认就叫「排序」）
+const SORT_SHORT = {
+  'time-desc': '时间 ↓',
+  'time-asc': '时间 ↑',
+  'priority-desc': '优先级 ↓',
+  'priority-asc': '优先级 ↑',
+}
+const DEFAULT_SORT = 'default'
+const PRIORITY_RANK = { high: 3, medium: 2, low: 1 }
+
+// 任务列表左上方的小标志：点击展开四种排序方式，选中即对当前列表生效
+function sortMenuHTML(view) {
+  const current = view.sort || DEFAULT_SORT
+  const label = SORT_SHORT[current] || '排序'
+  const options = SORT_ORDER.map(
+    (s) =>
+      `<button type="button" class="sort-option${current === s ? ' active' : ''}" data-action="sort-pick" data-sort="${s}" role="option" aria-selected="${current === s}">${SORT_LABELS[s]}</button>`
+  ).join('')
+  return `
+      <div class="list-toolbar">
+        <div class="sort-wrap">
+          <button type="button" class="btn-sort" data-action="sort-toggle" aria-haspopup="listbox" aria-expanded="false" title="排序方式">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 4v16M7 4l-3 3M7 4l3 3"/>
+              <path d="M17 20V4M17 20l-3-3M17 20l3-3"/>
+            </svg>
+            <span class="sort-label">${label}</span>
+          </button>
+          <div class="sort-menu" role="listbox">${options}</div>
+        </div>
+      </div>`
+}
 
 function matchesFilter(todo, filter) {
   if (filter === 'done') return todo.done
@@ -676,20 +750,33 @@ function filterButtonsHTML(view) {
   ).join('')
 }
 
-// 清空 + 筛选按钮行：列表顶部与底部各渲染一份（总-分-总），bottom=true 时去掉下边距、改为上边距
-// 主列表（withRestore=false）：全部 / 已完成 / 未完成（筛选）｜ 清空已完成 / 清空未完成
-// 历史记录（withRestore=true）：全部 / 已完成 / 未完成（筛选）｜ 恢复已完成 / 恢复未完成 / 恢复全部 ｜ 清空已完成 / 清空未完成 / 全部清空
+// 清空 + 筛选按钮行：只渲染在列表「上方」一组（用户要求保留最上方那组、去掉列表下方的重复组）。
+// 组内分两段，用 .action-group 包成独立一行：
+//   上一段 = 筛选（全部/已完成/未完成）+ 完成所有（主列表）或 恢复组（历史）；
+//   下一段 = 清空类按钮（清空已完成 / 清空未完成 / 清空全部 | 全部清空）。
+// 主列表（withRestore=false，7 个按钮）：[全部|已完成|未完成|完成所有] 一行，[清空已完成|清空未完成|清空全部] 一行
+// 历史记录（withRestore=true，9 个按钮）：[全部|已完成|未完成|恢复已完成|恢复未完成|恢复全部] 一行，[清空已完成|清空未完成|全部清空] 一行
 // 清空按钮点击时都要二次确认；恢复按钮无需确认（无损操作）。
-function clearActionsHTML(view, completed, total, bottom = false, withRestore = false) {
+function clearActionsHTML(view, completed, total, withRestore = false) {
   if (total === 0) return ''
   const incomplete = total - completed
+  const mainGroup = `
+        <div class="action-group">
+          ${filterButtonsHTML(view)}
+          ${!withRestore ? `<button class="btn-complete-all" data-action="complete-all" ${incomplete === 0 ? 'disabled' : ''}>✅ 完成所有${incomplete > 0 ? ` (${incomplete})` : ''}</button>` : ''}
+          ${withRestore ? restoreButtonsHTML(completed, incomplete) : ''}
+        </div>`
+  const clearGroup = `
+        <div class="action-group action-group-clear">
+          <button class="btn-clear-done" data-action="clear-done" ${completed === 0 ? 'disabled' : ''}>🗑️ 清空已完成${completed > 0 ? ` (${completed})` : ''}</button>
+          <button class="btn-clear-incomplete" data-action="clear-incomplete" ${incomplete === 0 ? 'disabled' : ''}>🧹 清空未完成${incomplete > 0 ? ` (${incomplete})` : ''}</button>
+          ${!withRestore ? `<button class="btn-clear-all-tasks" data-action="clear-all-tasks" ${total === 0 ? 'disabled' : ''}>⚡ 清空全部</button>` : ''}
+          ${withRestore ? `<button class="btn-clear-all" data-action="clear-all" ${total === 0 ? 'disabled' : ''}>⚡ 全部清空</button>` : ''}
+        </div>`
   return `
-      <div class="todo-clear-actions${bottom ? ' bottom' : ''}">
-        ${filterButtonsHTML(view)}
-        ${withRestore ? restoreButtonsHTML(completed, incomplete) : ''}
-        <button class="btn-clear-done" data-action="clear-done" ${completed === 0 ? 'disabled' : ''}>🗑️ 清空已完成${completed > 0 ? ` (${completed})` : ''}</button>
-        <button class="btn-clear-incomplete" data-action="clear-incomplete" ${incomplete === 0 ? 'disabled' : ''}>🧹 清空未完成${incomplete > 0 ? ` (${incomplete})` : ''}</button>
-        ${withRestore ? `<button class="btn-clear-all" data-action="clear-all" ${total === 0 ? 'disabled' : ''}>⚡ 全部清空</button>` : ''}
+      <div class="todo-clear-actions">
+        ${mainGroup}
+        ${clearGroup}
       </div>`
 }
 
@@ -699,42 +786,6 @@ function restoreButtonsHTML(completed, incomplete) {
         <button class="btn-restore-done" data-action="restore-done" ${completed === 0 ? 'disabled' : ''}>♻️ 恢复已完成${completed > 0 ? ` (${completed})` : ''}</button>
         <button class="btn-restore-incomplete" data-action="restore-incomplete" ${incomplete === 0 ? 'disabled' : ''}>♻️ 恢复未完成${incomplete > 0 ? ` (${incomplete})` : ''}</button>
         <button class="btn-restore-all" data-action="restore-all">♻️ 恢复全部</button>`
-}
-
-/* ── 排序 ── */
-
-const SORT_OPTIONS = [
-  { key: 'time', label: '按添加时间' },
-  { key: 'priority-asc', label: '优先级升序' },
-  { key: 'priority-desc', label: '优先级降序' },
-]
-
-const PRIORITY_RANK = { high: 3, medium: 2, low: 1 }
-
-function loadSort() {
-  const raw = localStorage.getItem(SORT_KEY)
-  return SORT_OPTIONS.some((o) => o.key === raw) ? raw : 'time'
-}
-
-function saveSort(value) {
-  localStorage.setItem(SORT_KEY, value)
-}
-
-let currentSort = loadSort()
-
-function sortTodos(todos) {
-  if (currentSort === 'time') return todos.slice()
-  const sorted = todos.slice()
-  if (currentSort === 'priority-asc') {
-    sorted.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority])
-  } else {
-    sorted.sort((a, b) => PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority])
-  }
-  return sorted
-}
-
-function sortLabel() {
-  return SORT_OPTIONS.find((o) => o.key === currentSort)?.label || '排序'
 }
 
 /* ── 任务优先级 ──
@@ -827,20 +878,84 @@ function highlightText(text, indices) {
   return html
 }
 
+function sortVisibleItems(visible, sort) {
+  if (!sort || sort === DEFAULT_SORT) return visible
+  const timeOf = (t) => (typeof t.createdAt === 'number' ? t.createdAt : 0)
+  const rankOf = (t) => PRIORITY_RANK[t.priority] || PRIORITY_RANK.medium
+  const comparators = {
+    'time-desc': (a, b) => timeOf(b.todo) - timeOf(a.todo),
+    'time-asc': (a, b) => timeOf(a.todo) - timeOf(b.todo),
+    // 同一优先级内按创建时间从新到旧，保证档内顺序稳定可预期
+    'priority-desc': (a, b) => rankOf(b.todo) - rankOf(a.todo) || timeOf(b.todo) - timeOf(a.todo),
+    'priority-asc': (a, b) => rankOf(a.todo) - rankOf(b.todo) || timeOf(b.todo) - timeOf(a.todo),
+  }
+  const cmp = comparators[sort]
+  return cmp ? visible.slice().sort(cmp) : visible
+}
+
 function getVisibleItems(todos, view) {
   const scoped = getFilteredTodos(todos, view.filter)
   const q = view.search.trim()
-  if (!q) return scoped.map((todo) => ({ todo, indices: null }))
-  const visible = []
-  for (const todo of scoped) {
-    const result = fuzzyMatch(todo.text, q)
-    if (result.matched) visible.push({ todo, indices: result.indices })
+  let visible
+  if (!q) {
+    visible = scoped.map((todo) => ({ todo, indices: null }))
+  } else {
+    visible = []
+    for (const todo of scoped) {
+      const result = fuzzyMatch(todo.text, q)
+      if (result.matched) visible.push({ todo, indices: result.indices })
+    }
   }
-  return visible
+  return sortVisibleItems(visible, view.sort)
+}
+
+/* ── 分页（主列表每页最多 5 条） ── */
+const PAGE_SIZE = 5
+
+function getTotalPages(totalItems) {
+  return Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
+}
+
+function clampPage(p, totalPages) {
+  if (!Number.isFinite(p) || p < 1) return 1
+  return Math.min(p, totalPages)
+}
+
+// 可编辑页码的分页控件（仅主列表渲染）：当前页可点击编辑跳转，并提供上一页 / 下一页
+function paginationHTML(view, totalItems) {
+  if (totalItems <= PAGE_SIZE) return ''
+  const totalPages = getTotalPages(totalItems)
+  view.page = clampPage(view.page, totalPages)
+  return `
+      <div class="pagination" data-total="${totalPages}">
+        <button type="button" class="page-btn page-prev" data-action="page-prev" ${view.page <= 1 ? 'disabled' : ''}>‹ 上一页</button>
+        <span class="page-indicator">第 <span class="page-current" data-action="page-edit" title="点击编辑页码跳转">${view.page}</span> / ${totalPages} 页</span>
+        <button type="button" class="page-btn page-next" data-action="page-next" ${view.page >= totalPages ? 'disabled' : ''}>下一页 ›</button>
+      </div>`
+}
+
+/* ── 添加日期 ──
+ * 任务创建时间（createdAt）显示在任务名右侧。
+ * 今天 / 昨天显示中文 + 时分；同年显示 MM-DD HH:mm；跨年显示 YYYY-MM-DD。
+ * 老数据没有 createdAt（值为 0）时不显示，避免渲染出一个空的日期块。 */
+function formatCreatedAt(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  const now = new Date()
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const dayStart = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const diffDays = Math.round((dayStart(now) - dayStart(d)) / 86400000)
+  if (diffDays === 0) return `今天 ${time}`
+  if (diffDays === 1) return `昨天 ${time}`
+  if (d.getFullYear() === now.getFullYear()) return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}`
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 function todoItemHTML(todo, indices) {
   const textHTML = indices && indices.length ? highlightText(todo.text, indices) : escapeHtml(todo.text)
+  const dateText = formatCreatedAt(todo.createdAt)
   return `
           <li class="todo-item ${todo.done ? 'done' : ''} priority-${todo.priority}" data-id="${todo.id}">
             <span class="priority-badge priority-${todo.priority}">${PRIORITY_LABELS[todo.priority]}</span>
@@ -849,6 +964,7 @@ function todoItemHTML(todo, indices) {
               <span class="checkmark"></span>
             </label>
             <span class="todo-text" data-action="edit">${textHTML}</span>
+            ${dateText ? `<span class="todo-date" title="添加于 ${dateText}">${dateText}</span>` : ''}
             <button class="btn-edit" data-action="edit" aria-label="编辑任务">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -867,9 +983,8 @@ function todoItemHTML(todo, indices) {
 }
 
 // 列表主体：主列表与历史记录共用，只是条目渲染器和空态不同
-function listHTML(items, view, emptyState, itemRenderer, shouldSort = false) {
-  const effective = shouldSort ? sortTodos(items) : items
-  if (effective.length === 0) {
+function listHTML(items, view, emptyState, itemRenderer) {
+  if (items.length === 0) {
     return `
             <li class="empty-state">
               <div class="empty-icon">${emptyState.icon}</div>
@@ -878,7 +993,7 @@ function listHTML(items, view, emptyState, itemRenderer, shouldSort = false) {
             </li>`
   }
 
-  const visible = getVisibleItems(effective, view)
+  const visible = getVisibleItems(items, view)
 
   if (visible.length === 0) {
     if (view.search.trim()) {
@@ -913,7 +1028,16 @@ function listHTML(items, view, emptyState, itemRenderer, shouldSort = false) {
             </li>`
   }
 
-  return visible.map(({ todo, indices }) => itemRenderer(todo, indices)).join('')
+  // 分页切片（仅主列表启用 view.paginate）
+  let pageItems = visible
+  if (view.paginate) {
+    const totalPages = getTotalPages(visible.length)
+    view.page = clampPage(view.page, totalPages)
+    const start = (view.page - 1) * PAGE_SIZE
+    pageItems = visible.slice(start, start + PAGE_SIZE)
+  }
+
+  return pageItems.map(({ todo, indices }) => itemRenderer(todo, indices)).join('')
 }
 
 // 搜索框（主列表与历史记录共用）
@@ -962,8 +1086,14 @@ function renderListView(store, view) {
   const list = store.listEl()
   if (!list) return
   const items = store.read()
-  list.innerHTML = listHTML(items, view, store.empty, store.itemRenderer, store.shouldSort)
+  list.innerHTML = listHTML(items, view, store.empty, store.itemRenderer)
   updateSearchHint(store.hintEl(), getVisibleItems(items, view).length, getFilteredTodos(items, view.filter).length, view)
+  // 分页控件与列表同属一个容器：只在当前列表的父容器里找 pagination-wrap，避免主列表与历史记录互相串台
+  const container = list.parentElement
+  const pagWrap = container.querySelector('#pagination-wrap')
+  if (pagWrap) pagWrap.innerHTML = paginationHTML(view, getVisibleItems(items, view).length)
+  // 局部刷新会重建分页按钮，必须重新绑定上一页/下一页/编辑页码（限定在容器范围内）
+  bindPagination(view, store, container)
 }
 
 function renderList() {
@@ -1033,39 +1163,17 @@ function render() {
           </svg>
           历史记录${historyCount > 0 ? ` (${historyCount})` : ''}
         </button>
-        <div class="sort-control">
-          <button type="button" class="btn-sort" id="btn-sort" title="排序方式" aria-haspopup="true" aria-expanded="false">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="21" y1="2" x2="21" y2="8"/>
-              <line x1="3" y1="16" x2="3" y2="22"/>
-              <line x1="3" y1="8" x2="21" y2="8"/>
-              <line x1="3" y1="22" x2="21" y2="22"/>
-              <line x1="3" y1="12" x2="3" y2="16"/>
-              <line x1="21" y1="18" x2="21" y2="22"/>
-              <line x1="14" y1="12" x2="14" y2="16"/>
-              <line x1="14" y1="18" x2="14" y2="22"/>
-            </svg>
-            <span class="sort-label-text">${sortLabel()}</span>
-          </button>
-          <div class="sort-dropdown" id="sort-dropdown" role="menu">
-            ${SORT_OPTIONS.map((o) => `
-              <button type="button" class="sort-option${o.key === currentSort ? ' active' : ''}" data-sort="${o.key}" role="menuitem">
-                <span>${o.label}</span>
-                ${o.key === currentSort ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-              </button>
-            `).join('')}
-          </div>
-        </div>
       </div>
       <p class="search-hint" id="search-hint"></p>
 
       ${clearActionsHTML(mainView, completed, todos.length)}
+      ${todos.length > 0 ? sortMenuHTML(mainView) : ''}
 
       <ul class="todo-list" id="todo-list">
-        ${listHTML(todos, mainView, EMPTY_MAIN, todoItemHTML, true)}
+        ${listHTML(todos, mainView, EMPTY_MAIN, todoItemHTML)}
       </ul>
 
-      ${clearActionsHTML(mainView, completed, todos.length, true)}
+      <div id="pagination-wrap">${paginationHTML(mainView, getVisibleItems(todos, mainView).length)}</div>
     </div>
 
     <div class="modal-overlay" id="confirm-modal">
@@ -1142,26 +1250,6 @@ function bindEvents() {
   settingsBtn.addEventListener('click', openSettings)
   document.querySelector('#btn-history').addEventListener('click', openHistory)
 
-  // 排序下拉菜单
-  const sortBtn = document.querySelector('#btn-sort')
-  const sortDropdown = document.querySelector('#sort-dropdown')
-  if (sortBtn && sortDropdown) {
-    sortBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const isOpen = sortDropdown.classList.toggle('show')
-      sortBtn.setAttribute('aria-expanded', String(isOpen))
-    })
-    sortDropdown.addEventListener('click', (e) => {
-      const opt = e.target.closest('[data-sort]')
-      if (!opt) return
-      currentSort = opt.dataset.sort
-      saveSort(currentSort)
-      sortDropdown.classList.remove('show')
-      sortBtn.setAttribute('aria-expanded', 'false')
-      render()
-    })
-  }
-
   // 搜索框 + 五个按钮：与主列表共用同一套绑定
   bindViewControls(document.querySelector('#app'), mainView, mainStore)
 
@@ -1188,7 +1276,8 @@ function bindEvents() {
     if (!text) return
     const todos = loadTodos()
     // LIFO：新任务插入数组头部，渲染时自然显示在最上方
-    todos.unshift({ id: Date.now(), text, done: false, priority: selectedPriority })
+    const now = Date.now()
+    todos.unshift({ id: now, text, done: false, priority: selectedPriority, createdAt: now })
     saveTodos(todos)
     // 新任务一定是未完成，若当前正筛选「已完成」则看不到它，自动切回「全部」
     if (mainView.filter === 'done') mainView.filter = 'all'
@@ -1251,6 +1340,57 @@ function openConfirm(title, desc, onConfirm) {
   modal.classList.add('show')
 }
 
+/* ── 分页控件（主列表）：上一页 / 下一页 / 点击当前页码就地编辑跳转 ── */
+function bindPagination(view, store, root = document) {
+  const pag = root.querySelector('.pagination')
+  if (!pag) return
+  const totalPages = Number(pag.dataset.total) || 1
+  const prevBtn = pag.querySelector('.page-prev')
+  const nextBtn = pag.querySelector('.page-next')
+  const curEl = pag.querySelector('.page-current')
+  if (prevBtn) prevBtn.addEventListener('click', () => {
+    if (prevBtn.disabled) return
+    view.page = clampPage(view.page - 1, totalPages)
+    store.render()
+  })
+  if (nextBtn) nextBtn.addEventListener('click', () => {
+    if (nextBtn.disabled) return
+    view.page = clampPage(view.page + 1, totalPages)
+    store.render()
+  })
+  if (curEl) curEl.addEventListener('click', () => startPageEdit(curEl, view, store))
+}
+
+// 点击当前页码 → 替换为输入框，回车/失焦提交（非法输入保持原页），Esc 取消
+function startPageEdit(spanEl, view, store) {
+  const pag = spanEl.closest('.pagination')
+  const totalPages = Number(pag && pag.dataset.total) || 1
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.className = 'page-edit-input'
+  input.value = String(view.page)
+  input.setAttribute('size', '2')
+  input.setAttribute('inputmode', 'numeric')
+  spanEl.replaceWith(input)
+  input.focus()
+  input.select()
+  let settled = false
+  const finish = (keep) => {
+    if (settled) return
+    settled = true
+    if (keep) {
+      const n = parseInt(input.value, 10)
+      if (Number.isFinite(n) && n >= 1) view.page = clampPage(n, totalPages)
+    }
+    store.render()
+  }
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true) }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false) }
+  })
+  input.addEventListener('blur', () => finish(true))
+}
+
 /* ── 视图控件绑定：搜索框 + 五个按钮（主列表与历史记录共用） ── */
 
 function bindViewControls(root, view, store) {
@@ -1264,6 +1404,7 @@ function bindViewControls(root, view, store) {
     }
     const applySearch = () => {
       view.search = searchInput.value
+      view.page = 1
       syncSearchState()
       renderListView(store, view)
     }
@@ -1297,6 +1438,32 @@ function bindViewControls(root, view, store) {
       store.render()
     })
   })
+
+  // 排序小标志（列表左上方）：点开菜单 → 选中即排序。菜单开合只存在 DOM，重渲染后自然收起
+  const sortWrap = root.querySelector('.sort-wrap')
+  if (sortWrap) {
+    const sortMenu = sortWrap.querySelector('.sort-menu')
+    const sortToggle = sortWrap.querySelector('.btn-sort')
+    const closeSortMenu = () => {
+      sortMenu.classList.remove('open')
+      sortToggle.setAttribute('aria-expanded', 'false')
+    }
+    sortToggle.addEventListener('mousedown', (e) => e.preventDefault())
+    sortToggle.addEventListener('click', () => {
+      const open = sortMenu.classList.toggle('open')
+      sortToggle.setAttribute('aria-expanded', String(open))
+    })
+    sortMenu.querySelectorAll('.sort-option').forEach((opt) => {
+      opt.addEventListener('click', () => {
+        closeSortMenu()
+        if (view.sort === opt.dataset.sort) return
+        view.sort = opt.dataset.sort
+        view.page = 1 // 换排序后回到第一页，避免停在已越界的页码上
+        playSound('priority')
+        store.render()
+      })
+    })
+  }
 
   // 列表上方与下方各有一组，必须全部绑定
   root.querySelectorAll('.btn-clear-done').forEach((btn) => {
@@ -1336,6 +1503,37 @@ function bindViewControls(root, view, store) {
       })
     })
   })
+
+  // 主列表「清空全部」：把所有任务（含未完成）移入回收站，区别于历史记录的「全部清空」（永久删除）
+  root.querySelectorAll('.btn-clear-all-tasks').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return
+      openConfirm(store.confirmTitle, store.confirmDesc, () => {
+        pushToHistory(store.read(), store)
+        store.write([])
+        playSound('clearAll')
+        store.render()
+      })
+    })
+  })
+
+  // 主列表「完成所有」：把每一项任务都打上勾（已完成的保持不变）
+  root.querySelectorAll('.btn-complete-all').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return
+      const todos = store.read()
+      let changed = false
+      todos.forEach((t) => { if (!t.done) { t.done = true; changed = true } })
+      if (changed) {
+        store.write(todos)
+        playSound('add')
+      }
+      store.render()
+    })
+  })
+
+  // 分页：上一页 / 下一页 / 点击当前页码就地编辑跳转（抽成 bindPagination，renderListView 局部刷新时也复用）
+  bindPagination(view, store, root)
 
   // 历史记录窗口里的「恢复」按钮组：把回收站里符合条件的条目放回原处（任务→待办，颜色→自定义色）
   const restoreItems = (items) => {
@@ -1521,11 +1719,11 @@ function renderHistory() {
   body.innerHTML = `
       ${searchBoxHTML(historyView, 'history-search', '搜索历史记录（实时模糊匹配）')}
       <p class="search-hint" id="history-hint"></p>
-      ${clearActionsHTML(historyView, completed, items.length, false, true)}
+      ${clearActionsHTML(historyView, completed, items.length, true)}
       <ul class="todo-list history-list" id="history-list">
         ${listHTML(items, historyView, EMPTY_HISTORY, historyItemHTML)}
       </ul>
-      ${clearActionsHTML(historyView, completed, items.length, true, true)}
+      <div id="pagination-wrap">${paginationHTML(historyView, getVisibleItems(items, historyView).length)}</div>
   `
 
   bindViewControls(body, historyView, historyStore)
@@ -1596,7 +1794,6 @@ const mainStore = {
   hintEl: () => document.querySelector('#search-hint'),
   empty: EMPTY_MAIN,
   itemRenderer: todoItemHTML,
-  shouldSort: true,
   clearDoneTitle: '确认清空已完成',
   clearDoneDesc: '已完成的任务将被移入历史记录，可随时恢复。',
   clearIncompleteTitle: '确认清空未完成',
@@ -1637,16 +1834,18 @@ document.addEventListener('click', (e) => {
       updateSettingsHeader()
     }
   }
+})
 
-  // 点击排序菜单外部时关闭下拉
-  const sortDropdown = document.querySelector('#sort-dropdown')
-  const sortBtn = document.querySelector('#btn-sort')
-  if (sortDropdown && sortDropdown.classList.contains('show')) {
-    if (!sortDropdown.contains(e.target) && !sortBtn?.contains(e.target)) {
-      sortDropdown.classList.remove('show')
-      sortBtn?.setAttribute('aria-expanded', 'false')
+// 排序菜单：点到别处就收起（同理，只绑一次；放进 bindEvents() 会每次渲染都叠加一个）
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.sort-menu.open').forEach((menu) => {
+    const wrap = menu.closest('.sort-wrap')
+    if (wrap && !wrap.contains(e.target)) {
+      menu.classList.remove('open')
+      const toggle = wrap.querySelector('.btn-sort')
+      if (toggle) toggle.setAttribute('aria-expanded', 'false')
     }
-  }
+  })
 })
 
 render()
