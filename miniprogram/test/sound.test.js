@@ -1,11 +1,12 @@
 /* utils/sound.js 的行为测试（用假的 wx 在 Node 里把整条播放链路跑一遍）
  *
- * 为什么单独测这一层：用户报过两个只在真机播放时才暴露的 bug ——
+ * 为什么单独测这一层：用户报过三个只在真机播放时才暴露的 bug ——
  *   1. 音效播放有问题，声音时好时坏
  *   2. 频率设置每个频率的声音都差不多一样
- * 这两个都不是合成算法的锅（synth.test.js 全过），而是播放链路的问题：
- * 缓存文件 + InnerAudioContext。所以这里用一个假的 wx 把「合成 → 落盘 → 播放」
- * 完整跑一遍，把两个 bug 都钉成回归测试。
+ *   3. 点太快会出现"音爆"
+ * 这三个都不是合成算法的锅（synth.test.js 全过），而是播放链路的问题：
+ * 缓存文件 + InnerAudioContext + 并发。所以这里用一个假的 wx 把
+ * 「合成 → 落盘 → 播放」完整跑一遍，把它们都钉成回归测试。
  *
  * 运行： node miniprogram/test/sound.test.js */
 
@@ -94,6 +95,12 @@ const core = require('../utils/core')
 
 const last = () => contexts[contexts.length - 1]
 const countFiles = (pat) => Object.keys(files).filter((p) => pat.test(p)).length
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// 把 live 里的实例都淡出掉，让后续断言从干净状态开始
+async function reset() {
+  sound.release()
+  await sleep(sound.FADE_STEPS * sound.FADE_STEP_MS + 80)
+}
 
 // 解码写进「磁盘」的 wav，用过零次数估算主频率
 function estimateFreq(buf, fromSec, toSec) {
@@ -127,8 +134,6 @@ function magAt(buf, freq, fromSec, toSec) {
   }
   return Math.sqrt(re * re + im * im) / Math.max(1, end - start)
 }
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function main() {
   lines.push('=== 小程序 sound.js 行为测试（假 wx） ===')
@@ -175,11 +180,12 @@ async function main() {
 
   /* ── 3. 播完即释放；出错自动补救一次（bug 1） ── */
   lines.push('--- 播放实例：每次新建、播完销毁、出错补救 ---')
+  await reset()
   const n0 = contexts.length
   sound.preview(52)
   const c52 = last()
   checkTrue('每次播放都新建实例（不复用做 stop→play）', contexts.length === n0 + 1)
-  check('音量透传给了实例', c52.volume, 1)
+  check('只有一个音在响时音量不打折', c52.volume, 1)
   const liveBefore = sound.stats().live
   c52.fireEnded()
   checkTrue('播完就销毁实例', c52.destroyed)
@@ -219,6 +225,7 @@ async function main() {
 
   /* ── 5. 音量 / 开关 ── */
   lines.push('--- 音量与开关 ---')
+  await reset()
   storage['todo-sound-settings'] = { volume: 0.35, pianoKey: 51 }
   sound.preview(51)
   check('试听时应用设置的音量', last().volume, 0.35)
@@ -229,22 +236,56 @@ async function main() {
   sound.preview(51)
   checkTrue('试听不受 5 个开关限制', contexts.length === n3 + 1)
 
-  /* ── 6. 换音高后延迟清理旧文件（不删正在播的） ── */
+  /* ── 6. 点太快不"音爆"（用户反馈的 bug 3） ── */
+  lines.push('--- 点太快不"音爆" ---')
+  // ① 同一个音效连点不叠加（多份同波形相加会削波）
+  await reset()
+  sound.preview(30)
+  const interrupted = last()
+  const beforeCount = sound.stats().playing
+  sound.preview(30)
+  checkTrue('同一个音效再点会新建一个实例来重播', contexts.length >= 2)
+  check('同一时刻每个音效只留一个实例（不会越点越叠）', sound.stats().playing, beforeCount)
+  // ② 被打断的旧实例先淡出再销毁，不是从波形半空中硬切
+  await sleep(sound.FADE_STEP_MS * 2 + 2)
+  checkTrue('被顶掉的实例先降音量（不是硬切）', interrupted.volume < 1)
+  checkTrue('此刻还在淡出中（还没销毁）', !interrupted.destroyed)
+  await sleep(sound.FADE_STEP_MS * 3 + 20)
+  checkTrue('淡出结束后才销毁', interrupted.destroyed)
+  // ③ 多个音同时响时统一留余量，避免叠起来超过满刻度被硬削波
+  await reset()
+  storage['todo-sound-settings'] = { volume: 1, pianoKey: 51 }
+  sound.preview(51)
+  check('只有一个音在响时音量不打折', sound.stats().volumes[0], 1)
+  sound.play('add')
+  const vols = sound.stats().volumes
+  check('两个音同时响时各降一档（1/√2）', vols.length, 2)
+  checkTrue('降档幅度符合功率守恒', vols.every((v) => Math.abs(v - 1 / Math.sqrt(2)) < 1e-9))
+  // 增益只降不升：别的音播完后，还在响的音不中途抬高（那一下又是一声"噗"）
+  last().fireEnded()
+  checkTrue('其它音播完不会把还在响的音中途抬高', sound.stats().volumes[0] < 1)
+
+  /* ── 7. 换音高后延迟清理旧文件（不删正在播的） ── */
   lines.push('--- 旧音高文件延迟清理 ---')
+  await reset()
   sound.preview(56) // 最后一次换音高，开始计时
-  checkTrue('此刻旧文件还在（不立刻删，避免掐断正在播的音）', countFiles(/sfx-51-/) > 0)
+  checkTrue('此刻旧文件还在（不立刻删，避免掐断正在播的音）', countFiles(/sfx-5[0-5]-/) > 0)
   await sleep(sound.CLEAN_DELAY + 300)
   checkTrue('旧音高的文件已清理', countFiles(/sfx-5[0-5]-/) === 0)
   checkTrue('当前音高的文件保留', countFiles(/sfx-56-/) > 0)
   check('清理确实走了 unlinkSync', unlinkCount > 0, true)
 
-  /* ── 7. 并发实例数有上限（不超平台限制） ── */
+  /* ── 8. 并发实例数有上限 ── */
   lines.push('--- 实例数量上限 ---')
   for (let i = 0; i < 20; i++) sound.preview(60 + i)
-  check('并发实例数不超过上限', sound.stats().live, sound.MAX_LIVE)
+  check('同一个音效连点 20 次也只留 1 个实例', sound.stats().live, 1)
+  const names = ['add', 'priority', 'delete', 'clearDone', 'clearAll']
+  for (let r = 0; r < 5; r++) names.forEach((nm) => sound.play(nm))
+  checkTrue('多个音效并发时实例数不超过上限', sound.stats().live <= sound.MAX_LIVE)
+  check('每个音效各只留一个实例（5 个音效 + 钢琴）', sound.stats().playing, 6)
   checkTrue('上限是个合理的小数值', sound.MAX_LIVE >= 2 && sound.MAX_LIVE <= 10)
 
-  /* ── 8. release（App.onHide） ── */
+  /* ── 9. release（App.onHide） ── */
   lines.push('--- release ---')
   const preserved = last().src
   sound.release()

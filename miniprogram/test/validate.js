@@ -229,6 +229,35 @@ check('播放出错会自动重播一次', soundJsSrc.includes('onError') && sou
 check('缓存文件被系统清掉后会重合成', soundJsSrc.includes('fileExists'))
 check('合成带限（谐波不越过奈奎斯特）', read(path.join(ROOT, 'utils', 'synth.js')).includes('harmonicCount'))
 
+/* 点太快会"音爆"：三个来源都要治（详见 utils/sound.js 文件头注释 3） */
+check('每个音效同时只留一个实例（连点不叠加 → 不削波）', soundJsSrc.includes('playing[name]') && soundJsSrc.includes('retire(prev)'))
+check('被打断的实例先淡出再销毁（不是从波形半空中硬切）', soundJsSrc.includes('function fadeOut') && soundJsSrc.includes('function retire'))
+check('多个音同时响时按 1/√n 留余量', soundJsSrc.includes('Math.sqrt(live.length)'))
+check('增益只降不升（避免中途抬音量"噗"一声）', soundJsSrc.includes('target < c.__gain'))
+
+/* 色值输入框：和任务名输入框一样，只有用户主动退出输入才失焦 */
+check('色值输入框也保持键盘（hold-keyboard）', /class="custom-input"[\s\S]*?hold-keyboard="\{\{true\}\}"/.test(settingsWxmlInput))
+check('色值输入框回车不收键盘（confirm-hold）', /class="custom-input"[\s\S]*?confirm-hold="\{\{true\}\}"/.test(settingsWxmlInput))
+check('色值输入框受 focus 控制', /class="custom-input"[\s\S]*?focus="\{\{colorFocus\}\}"/.test(settingsWxmlInput))
+check('色值输入框失焦有回调', /class="custom-input"[\s\S]*?bindblur="onCustomBlur"/.test(settingsWxmlInput))
+check('定义了 onCustomBlur / keepColorFocus', bodyOf(settingsJs, 'onCustomBlur') !== '' && bodyOf(settingsJs, 'keepColorFocus') !== '')
+check('应用色值后光标留在输入框', bodyOf(settingsJs, 'applyCustom').includes('keepColorFocus'))
+check('认不出颜色时也不把用户踢出输入框', /showToast[\s\S]*?keepColorFocus/.test(bodyOf(settingsJs, 'applyCustom')))
+
+/* 最近用色的分页（与主列表 / 历史记录同一套控件与规则） */
+check('最近用色有分页控件（复用全局 .pagination）', /class="pagination"/.test(settingsWxmlInput)
+  && /bindtap="prevColorPage"/.test(settingsWxmlInput)
+  && /bindtap="nextColorPage"/.test(settingsWxmlInput))
+check('分页显示「当前页 / 总页数」', /\{\{customPage\}\} \/ \{\{customTotalPages\}\}/.test(settingsWxmlInput))
+check('只有一页时不显示分页控件', /wx:if="\{\{customTotalPages > 1\}\}"/.test(settingsWxmlInput))
+check('每页 4 个（4 列网格正好一行）', settingsJs.includes('COLORS_PAGE_SIZE = 4'))
+check('按页切片后才渲染', settingsJs.includes('colors.slice((page - 1) * COLORS_PAGE_SIZE, page * COLORS_PAGE_SIZE)'))
+check('页码越界收敛到首/末页', settingsJs.includes('Math.min(Math.max(1, Number(p) || this.customPage), total)'))
+check('删到不足一页时页码回收到末页', settingsJs.includes('Math.min(Math.max(1, this.customPage || 1), totalPages)'))
+check('「全部删除」按总数判断（不是当前页长度）', settingsJs.includes('if (!this.data.customCount) return'))
+check('新增颜色后跳到第 1 页（新颜色插在最前）', bodyOf(settingsJs, 'applyCustom').includes('this.customPage = 1'))
+check('标题显示颜色总数', /\{\{customCount\}\}/.test(settingsWxmlInput))
+
 /* 选优先级时不该收起键盘 */
 check('输入框保持键盘（hold-keyboard）', /hold-keyboard="\{\{true\}\}"/.test(indexWxml))
 

@@ -5,6 +5,10 @@ const perf = require('../../utils/perf')
 
 const app = getApp()
 
+// 「最近用的颜色」每页几个：色块是 4 列网格，一页 4 个正好铺满一行，
+// 翻页像翻卡片一样整齐（主列表 / 历史记录那边是列表，每页 5 条）
+const COLORS_PAGE_SIZE = 4
+
 Page({
   data: {
     themeStyle: '',
@@ -12,6 +16,11 @@ Page({
     presets: core.RAINBOW_COLORS,
     customInput: '',
     customColors: [],
+    customCount: 0,
+    customPage: 1,
+    customTotalPages: 1,
+    // 与任务名输入框一致：只有用户主动退出输入才失焦
+    colorFocus: false,
     soundRows: [],
     allSoundOn: true,
     // 音效全局参数：音量用百分比显示；频率用钢琴琴键序号（0=A0、87=C8，全音域）
@@ -24,6 +33,7 @@ Page({
   // 同回收站：数据在 onLoad 备好，第一次绘制即完整
   onLoad() {
     perf.mark('settings onLoad 开始')
+    this.customPage = 1
     this.refresh()
     perf.mark('settings 数据就绪')
   },
@@ -35,10 +45,18 @@ Page({
   refresh() {
     const theme = app.globalData.theme
     const soundSettings = store.loadSoundSettings()
+    const colors = store.loadCustomColors()
+    // 最近用色分页：当前页越界就往回收敛（删到只剩几个时不会停在空页上）
+    const totalPages = Math.max(1, Math.ceil(colors.length / COLORS_PAGE_SIZE))
+    const page = Math.min(Math.max(1, this.customPage || 1), totalPages)
+    this.customPage = page
     this.setData({
       themeStyle: app.globalData.themeStyle,
       theme,
-      customColors: store.loadCustomColors(),
+      customColors: colors.slice((page - 1) * COLORS_PAGE_SIZE, page * COLORS_PAGE_SIZE),
+      customCount: colors.length,
+      customPage: page,
+      customTotalPages: totalPages,
       soundRows: store.SOUND_TYPES.map((s) => ({
         key: s.key,
         label: s.label,
@@ -50,6 +68,25 @@ Page({
       soundNote: core.keyNameOf(soundSettings.pianoKey),
       soundFreqHz: Math.round(core.keyToFreq(soundSettings.pianoKey)),
     })
+  },
+
+  /* ── 最近用色的分页（与主列表 / 历史记录同一套规则） ── */
+
+  prevColorPage() {
+    this.gotoColorPage(this.customPage - 1)
+  },
+
+  nextColorPage() {
+    this.gotoColorPage(this.customPage + 1)
+  },
+
+  gotoColorPage(p) {
+    const total = this.data.customTotalPages
+    // 越界收敛到首/末页，非法输入保持原页
+    const next = Math.min(Math.max(1, Number(p) || this.customPage), total)
+    if (next === this.customPage) return
+    this.customPage = next
+    this.refresh()
   },
 
   /* ── 主题色 ── */
@@ -65,16 +102,39 @@ Page({
     this.setData({ customInput: e.detail.value })
   },
 
-  applyCustom() {
+  /* 色值输入框的焦点：与任务名输入框一样，只有用户主动退出输入才失焦。
+   * （输入框本身配了 confirm-hold + hold-keyboard，所以回车、点色块、点「应用」、
+   *   点分页都不会把键盘收掉，可以一直改颜色。） */
+  onCustomBlur() {
+    this.setData({ colorFocus: false })
+  },
+
+  // focus 只有在「值变化」时才生效，所以已经失焦时才去置 true
+  keepColorFocus() {
+    setTimeout(() => {
+      if (!this.data.colorFocus) this.setData({ colorFocus: true })
+    }, 50)
+  },
+
+  applyCustom(e) {
+    // 回车（bindconfirm）和点「应用」都会走这里，用 detail.value 区分来源
+    const fromKeyboard = !!(e && e.detail && typeof e.detail.value === 'string')
+    const hadFocus = this.data.colorFocus
     const hex = core.parseColor(this.data.customInput)
     if (!hex) {
       wx.showToast({ title: '认不出这个颜色', icon: 'none' })
+      // 认不出也别把用户踢出输入框，方便直接改；但只在本来就处于输入状态时才保持，
+      // 避免点「应用」按钮时凭空弹出键盘（与任务名输入框同一套规则）
+      if (fromKeyboard || hadFocus) this.keepColorFocus()
       return
     }
     // 规范化后的色值回填到输入框
     this.setData({ customInput: hex })
     store.rememberCustomColor(hex)
+    // 新颜色是插到最前面的（第 1 页），跳到首页让用户立刻看到它
+    this.customPage = 1
     this.applyTheme(hex, true)
+    if (fromKeyboard || hadFocus) this.keepColorFocus()
   },
 
   applySaved(e) {
@@ -110,7 +170,8 @@ Page({
   },
 
   clearAllColors() {
-    if (!this.data.customColors.length) return
+    // 注意：不能用 data.customColors（那只是当前页），要用总数
+    if (!this.data.customCount) return
     wx.showModal({
       title: '删除全部自定义色',
       content: '这些颜色会一起移到历史记录，可以再恢复。',

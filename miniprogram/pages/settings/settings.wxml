@@ -30,15 +30,19 @@
         auto-height="{{true}}"
         disable-default-padding="{{true}}"
         confirm-type="done"
+        confirm-hold="{{true}}"
+        hold-keyboard="{{true}}"
+        focus="{{colorFocus}}"
         bindinput="onCustomInput"
         bindconfirm="applyCustom"
+        bindblur="onCustomBlur"
       />
       <view class="custom-btn" bindtap="applyCustom">应用</view>
     </view>
 
     <block wx:if="{{customColors.length > 0}}">
       <view class="saved-title">
-        <text>最近用的颜色</text>
+        <text>最近用的颜色 ({{customCount}})</text>
         <text class="saved-tip">点色码复制，点右上角 × 删除</text>
       </view>
       <view class="saved-grid">
@@ -55,6 +59,14 @@
           <view class="saved-code" data-hex="{{item}}" bindtap="copyCode">{{item}}</view>
         </view>
       </view>
+
+      <!-- 分页：与主列表 / 历史记录用的是同一套控件（全局样式 .pagination） -->
+      <view wx:if="{{customTotalPages > 1}}" class="pagination">
+        <view class="page-btn {{customPage <= 1 ? 'disabled' : ''}}" bindtap="prevColorPage">‹ 上一页</view>
+        <text class="page-indicator">第 {{customPage}} / {{customTotalPages}} 页</text>
+        <view class="page-btn {{customPage >= customTotalPages ? 'disabled' : ''}}" bindtap="nextColorPage">下一页 ›</view>
+      </view>
+
       <view class="clear-colors" bindtap="clearAllColors">🗑️ 全部删除</view>
     </block>
   </view>
