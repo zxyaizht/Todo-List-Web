@@ -11,6 +11,13 @@ const app = getApp()
 // 色块网格也跟着改成 5 列，这样一页正好铺满一行，翻页像翻卡片一样整齐
 const COLORS_PAGE_SIZE = 5
 
+// 页码跳转弹窗要用的三个回调（弹窗与解析规则都在 utils/pagedit.js）
+const PAGE_OPTS = {
+  getTotal() { return this.data.customTotalPages },
+  getCurrent() { return this.data.customPage },
+  apply(next) { this.gotoColorPage(next) },
+}
+
 Page({
   data: {
     themeStyle: '',
@@ -23,6 +30,10 @@ Page({
     customTotalPages: 1,
     // 与任务名输入框一致：只有用户主动退出输入才失焦
     colorFocus: false,
+    // 页码跳转弹窗（自绘：平台的 showModal 会自动弹键盘）
+    pageDialog: false,
+    pageInput: '',
+    pageTotal: 1,
     soundRows: [],
     allSoundOn: true,
     // 音效全局参数：音量用百分比显示；频率用钢琴琴键序号（0=A0、87=C8，全音域）
@@ -99,11 +110,22 @@ Page({
     this.refresh()
   },
 
-  // 点页码 → 输入页码直接跳（规则与主列表 / 历史记录一致，见 utils/pagedit.js）
+  /* 点页码 → 弹出跳页弹窗（自绘，输入框**不自动聚焦**，用户点它才弹键盘）。
+   * 规则（越界收敛、认不出保持原页，与主列表/回收站一致）都在 utils/pagedit.js 里。 */
   editPage() {
-    pagedit.promptJumpPage(this.data.customPage, this.data.customTotalPages, (next) => {
-      this.gotoColorPage(next)
-    })
+    pagedit.openPageDialog(this, PAGE_OPTS)
+  },
+
+  onPageDialogInput(e) {
+    pagedit.inputPageDialog(this, e)
+  },
+
+  closePageDialog() {
+    pagedit.closePageDialog(this)
+  },
+
+  confirmPageDialog() {
+    pagedit.confirmPageDialog(this, PAGE_OPTS)
   },
 
   /* ── 主题色 ── */

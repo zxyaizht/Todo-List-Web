@@ -515,3 +515,69 @@ page {
   color: var(--primary);
   border-bottom: 2rpx dashed var(--border);
 }
+
+/* ── 页码跳转弹窗（自绘：平台的 wx.showModal 会自动聚焦输入框，一点页码键盘就弹出来） ── */
+
+.page-dialog {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.page-dialog-card {
+  width: 78%;
+  max-width: 560rpx;
+  padding: 36rpx 32rpx 24rpx;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: 0 12rpx 40rpx rgba(15, 23, 42, 0.2);
+}
+
+.page-dialog-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}
+
+/* 输入框**不聚焦**：用户点它才会弹键盘 */
+.page-dialog-input {
+  width: 100%;
+  min-height: 82rpx;
+  margin-top: 24rpx;
+  padding: 20rpx 24rpx;
+  box-sizing: border-box;
+  font-size: 30rpx;
+  line-height: 42rpx;
+  color: var(--text);
+  background: var(--primary-soft);
+  border-radius: var(--radius-sm);
+}
+
+.page-dialog-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 28rpx;
+}
+
+.page-dialog-btn {
+  flex: 1;
+  padding: 20rpx 0;
+  text-align: center;
+  font-size: 28rpx;
+  color: var(--text-muted);
+  background: #f1f5f9;
+  border-radius: var(--radius-sm);
+}
+
+.page-dialog-btn.primary {
+  color: #ffffff;
+  background: var(--primary);
+}

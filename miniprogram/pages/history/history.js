@@ -10,6 +10,17 @@ const app = getApp()
 // 回收站的视图状态与主列表各自独立
 const view = { search: '', filter: 'all', sort: core.DEFAULT_SORT, priority: 'all', page: 1 }
 
+// 页码跳转弹窗要用的三个回调（弹窗与解析规则都在 utils/pagedit.js）
+const PAGE_OPTS = {
+  getTotal() { return this.data.totalPages },
+  getCurrent() { return view.page },
+  apply(next) {
+    if (next === view.page) return
+    view.page = next
+    this.refresh()
+  },
+}
+
 // 只给要显示的条目做高亮分段
 function decorate(rec, indices) {
   const isColor = rec.kind === 'color'
@@ -40,6 +51,10 @@ Page({
     total: 0,
     completed: 0,
     incomplete: 0,
+    // 页码跳转弹窗（自绘：平台的 showModal 会自动弹键盘）
+    pageDialog: false,
+    pageInput: '',
+    pageTotal: 1,
     visibleCount: 0,
     totalPages: 1,
     page: 1,
@@ -275,12 +290,21 @@ Page({
     this.refresh()
   },
 
-  // 点页码 → 输入页码直接跳（越界收敛、认不出保持原页，规则见 utils/pagedit.js）
+  /* 点页码 → 弹出跳页弹窗（自绘，输入框**不自动聚焦**，用户点它才弹键盘）。
+   * 规则（越界收敛、认不出保持原页，与网页版一致）都在 utils/pagedit.js 里。 */
   editPage() {
-    pagedit.promptJumpPage(view.page, this.data.totalPages, (next) => {
-      if (next === view.page) return
-      view.page = next
-      this.refresh()
-    })
+    pagedit.openPageDialog(this, PAGE_OPTS)
+  },
+
+  onPageDialogInput(e) {
+    pagedit.inputPageDialog(this, e)
+  },
+
+  closePageDialog() {
+    pagedit.closePageDialog(this)
+  },
+
+  confirmPageDialog() {
+    pagedit.confirmPageDialog(this, PAGE_OPTS)
   },
 })

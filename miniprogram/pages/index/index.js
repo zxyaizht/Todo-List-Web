@@ -10,6 +10,17 @@ const app = getApp()
 // 视图状态（与网页版一致：筛选/排序/优先级筛选都只存在内存，重启回到默认）
 const view = { search: '', filter: 'all', sort: core.DEFAULT_SORT, priority: 'all', page: 1 }
 
+// 页码跳转弹窗要用的三个回调（弹窗与解析规则都在 utils/pagedit.js）
+const PAGE_OPTS = {
+  getTotal() { return this.data.totalPages },
+  getCurrent() { return view.page },
+  apply(next) {
+    if (next === view.page) return
+    view.page = next
+    this.refresh()
+  },
+}
+
 let selectedPriority = 'medium'
 
 // 只给要显示的条目做高亮分段（原来是对全部可见条目都算一遍，纯浪费）
@@ -51,6 +62,10 @@ Page({
     // 撤回 / 取消撤回 是否可用（决定两个箭头是否置灰）
     canUndo: false,
     canRedo: false,
+    // 页码跳转弹窗（自绘：平台的 showModal 会自动弹键盘）
+    pageDialog: false,
+    pageInput: '',
+    pageTotal: 1,
     visibleCount: 0,
     totalPages: 1,
     page: 1,
@@ -453,13 +468,22 @@ Page({
     this.refresh()
   },
 
-  // 点页码 → 输入页码直接跳（越界收敛、认不出保持原页，规则见 utils/pagedit.js）
+  /* 点页码 → 弹出跳页弹窗（自绘，输入框**不自动聚焦**，用户点它才弹键盘）。
+   * 规则（越界收敛、认不出保持原页，与网页版一致）都在 utils/pagedit.js 里。 */
   editPage() {
-    pagedit.promptJumpPage(view.page, this.data.totalPages, (next) => {
-      if (next === view.page) return
-      view.page = next
-      this.refresh()
-    })
+    pagedit.openPageDialog(this, PAGE_OPTS)
+  },
+
+  onPageDialogInput(e) {
+    pagedit.inputPageDialog(this, e)
+  },
+
+  closePageDialog() {
+    pagedit.closePageDialog(this)
+  },
+
+  confirmPageDialog() {
+    pagedit.confirmPageDialog(this, PAGE_OPTS)
   },
 
   /* ── 跳转 ── */

@@ -261,22 +261,43 @@ check('「全部删除」按总数判断（不是当前页长度）', settingsJs
 check('新增颜色后跳到第 1 页（新颜色插在最前）', bodyOf(settingsJs, 'applyCustom').includes('this.customPage = 1'))
 check('标题显示颜色总数', /\{\{customCount\}\}/.test(settingsWxmlInput))
 
-/* 点页码 → 输入页码跳页（三个页面共用 utils/pagedit.js，规则与网页版 startPageEdit 一致） */
+/* 点页码 → 弹出跳页弹窗（三个页面共用 utils/pagedit.js，规则与网页版 startPageEdit 一致）
+ * 弹窗是**自绘**的：wx.showModal 的 editable 输入框会自动聚焦 —— 一点页码键盘就弹出来，
+ * 而 showModal 没有关闭自动聚焦的参数（官方只有 title/content/showCancel/cancelText/
+ * cancelColor/confirmText/confirmColor/editable/placeholderText）。所以输入框必须不带 focus。 */
 const pageditJs = read(path.join(ROOT, 'utils', 'pagedit.js'))
-check('pagedit.js 导出 promptJumpPage', /function promptJumpPage/.test(pageditJs) && /promptJumpPage/.test(pageditJs.split('module.exports')[1] || ''))
+check('pagedit.js 导出四个入口', ['openPageDialog', 'inputPageDialog', 'closePageDialog', 'confirmPageDialog']
+  .every((k) => new RegExp('\\n  ' + k + ',').test(pageditJs)))
+// 注释里正解释"为什么不用 wx.showModal"，所以要先去掉注释再断言（否则注释会被当成代码）
+const pageditCode = pageditJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+check('不再用 wx.showModal（它的 editable 会自动聚焦）', !pageditCode.includes('showModal'))
 check('解析规则只有一份（pagedit 复用 core.parsePageInput）', pageditJs.includes("require('./core')") && pageditJs.includes('core.parsePageInput'))
 check('core 里定义了并导出 parsePageInput', coreJsSrc.includes('function parsePageInput') && coreJsSrc.includes('parsePageInput,'))
 check('三个页面的页码都能点击编辑', [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
   .every((s) => /class="page-indicator tappable" bindtap="editPage"/.test(s)))
 check('可点页码的样式已定义（虚线 + 主题色）', /\.page-indicator\.tappable\s*\{[\s\S]*?dashed/.test(appWxssInput))
+check('三个页面都有跳页弹窗', [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
+  .every((s) => /class="page-dialog"/.test(s) && /class="page-dialog-card"/.test(s)))
+// 只取弹窗那个 textarea 标签本身（[^>]* 保证不会跨到别的标签上）
+const dialogInputs = [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
+  .map((s) => (s.match(/<textarea[^>]*class="page-dialog-input"[^>]*>/) || [''])[0])
+check('三个页面的弹窗都有输入框', dialogInputs.every((t) => t !== ''))
+check('弹窗输入框带 fixed（原生组件在 fixed 区域里要显式声明）', dialogInputs.every((t) => t.includes('fixed="{{true}}"')))
+check('弹窗输入框不带走键盘的 confirm-hold / hold-keyboard', dialogInputs.every((t) => !/hold-keyboard/.test(t) && !/confirm-hold/.test(t)))
+check('弹窗有取消 / 确定两个按钮', [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
+  .every((s) => /bindtap="closePageDialog"/.test(s) && /bindtap="confirmPageDialog"/.test(s)))
+check('弹窗样式已定义（蒙层固定 + 主题色确定键）', /\.page-dialog\s*\{[\s\S]*?position:\s*fixed/.test(appWxssInput)
+  && /\.page-dialog-btn\.primary\s*\{[\s\S]*?background:\s*var\(--primary\)/.test(appWxssInput))
 ;['index', 'history', 'settings'].forEach((p) => {
   const src = read(path.join(ROOT, 'pages', p, p + '.js'))
   check('页面引入 pagedit：' + p, /require\('\.\.\/\.\.\/utils\/pagedit'\)/.test(src))
-  check('页面实现 editPage 并调用 promptJumpPage：' + p, /editPage\s*\(\s*\)\s*\{[\s\S]*?promptJumpPage/.test(src))
+  check('页面接了四个弹窗 handler：' + p, ['editPage', 'onPageDialogInput', 'closePageDialog', 'confirmPageDialog']
+    .every((fn) => new RegExp(fn + '\\s*\\([\\s\\S]{0,90}?pagedit\\.').test(src)))
+  check('页面 data 里有弹窗状态：' + p, /pageDialog:\s*false/.test(src) && /pageTotal:\s*1/.test(src))
 })
-check('主列表编辑页码后套用新页码并刷新', bodyOf(indexJs, 'editPage').includes('view.page = next') && bodyOf(indexJs, 'editPage').includes('refresh'))
-check('回收站编辑页码后套用新页码并刷新', bodyOf(historyJs, 'editPage').includes('view.page = next') && bodyOf(historyJs, 'editPage').includes('refresh'))
-check('最近用色编辑页码后走统一跳页逻辑', bodyOf(settingsJs, 'editPage').includes('gotoColorPage'))
+check('主列表跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?view\.page = next[\s\S]{0,60}?this\.refresh\(\)/.test(indexJs))
+check('回收站跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?view\.page = next[\s\S]{0,60}?this\.refresh\(\)/.test(historyJs))
+check('最近用色跳页后走统一跳页逻辑', /apply\(next\)[\s\S]{0,90}?gotoColorPage/.test(settingsJs))
 
 /* 「完成所有」在全完成后变成「取消所有」 */
 check('按钮文案由 completeAllLabel 决定', /class="action-btn complete" bindtap="completeAll">\{\{completeAllLabel\}\}/.test(indexWxmlInput))
