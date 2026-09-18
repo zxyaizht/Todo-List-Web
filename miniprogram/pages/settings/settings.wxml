@@ -70,6 +70,39 @@
         </view>
       </view>
     </view>
+
+    <!-- 音效参数：音量 + 频率（颜色跟随主题） -->
+    <view class="slider-row">
+      <text class="slider-label">音量</text>
+      <slider
+        class="slider"
+        min="0"
+        max="100"
+        step="1"
+        value="{{soundVolume}}"
+        activeColor="{{theme}}"
+        block-color="{{theme}}"
+        backgroundColor="#e2e8f0"
+        bindchange="onVolumeChange"
+      />
+      <text class="slider-value">{{soundVolume}}%</text>
+    </view>
+    <view class="slider-row">
+      <text class="slider-label">频率</text>
+      <slider
+        class="slider"
+        min="262"
+        max="1046"
+        step="2"
+        value="{{soundFreq}}"
+        activeColor="{{theme}}"
+        block-color="{{theme}}"
+        backgroundColor="#e2e8f0"
+        bindchange="onFreqChange"
+      />
+      <text class="slider-value">{{soundFreq}} Hz</text>
+    </view>
+    <view class="slider-tip">频率是整体变调，以「添加任务」的音高为基准（受平台播放倍率 0.5~2 限制）。</view>
   </view>
 
   <view class="footnote">数据保存在本机，不会上传服务器。</view>

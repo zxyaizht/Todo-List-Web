@@ -13,6 +13,22 @@ const SOUND_FILES = {
 
 const contexts = {}
 
+// 「添加任务」第一个音的音高（523.25Hz）。频率设置就是拿它当基准换算播放倍率的。
+const PITCH_REF = 523.25
+
+// wav 是预先合成好的，没法在播放时改音高，
+// 所以用播放倍率来变调（0.5~2.0，平台限制）；音量则可以直接设。
+function applyParams(ctx, settings) {
+  const volume = typeof settings.volume === 'number' ? settings.volume : 1
+  ctx.volume = Math.min(1, Math.max(0, volume))
+  const hz = typeof settings.frequency === 'number' ? settings.frequency : PITCH_REF
+  try {
+    ctx.playbackRate = Math.min(2, Math.max(0.5, hz / PITCH_REF))
+  } catch (e) {
+    // 个别基础库不支持 playbackRate 时忽略，音高保持原样
+  }
+}
+
 function play(name) {
   if (!SOUND_FILES[name]) return
   const settings = store.loadSoundSettings()
@@ -26,6 +42,7 @@ function play(name) {
     }
     // 连续点击时先停再放，避免叠在一起
     ctx.stop()
+    applyParams(ctx, settings)
     ctx.play()
   } catch (e) {
     // 静默失败：音效不该影响主流程

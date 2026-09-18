@@ -14,6 +14,9 @@ Page({
     customColors: [],
     soundRows: [],
     allSoundOn: true,
+    // 音效全局参数（滑杆用百分比 / Hz 显示，存的是 0~1 与 Hz）
+    soundVolume: 100,
+    soundFreq: 523,
   },
 
   // 同回收站：数据在 onLoad 备好，第一次绘制即完整
@@ -40,6 +43,8 @@ Page({
         on: !!soundSettings[s.key],
       })),
       allSoundOn: store.SOUND_TYPES.every((s) => !!soundSettings[s.key]),
+      soundVolume: Math.round((soundSettings.volume == null ? 1 : soundSettings.volume) * 100),
+      soundFreq: Math.round(soundSettings.frequency || 523),
     })
   },
 
@@ -47,6 +52,8 @@ Page({
 
   pickTheme(e) {
     const hex = e.currentTarget.dataset.hex
+    // 点预设色时把色码同步填进下面的自定义输入框，方便直接看到 / 复制这个色值
+    this.setData({ customInput: hex })
     this.applyTheme(hex, false)
   },
 
@@ -136,5 +143,25 @@ Page({
       sound.play(pick.key)
     }
     this.refresh()
+  },
+
+  /* ── 音效参数：音量 / 频率（滑杆松手即保存并试听） ── */
+
+  onVolumeChange(e) {
+    const percent = e.detail.value
+    const settings = store.loadSoundSettings()
+    settings.volume = percent / 100
+    store.saveSoundSettings(settings)
+    this.setData({ soundVolume: percent })
+    sound.play('priority')
+  },
+
+  onFreqChange(e) {
+    const hz = e.detail.value
+    const settings = store.loadSoundSettings()
+    settings.frequency = hz
+    store.saveSoundSettings(settings)
+    this.setData({ soundFreq: hz })
+    sound.play('priority')
   },
 })

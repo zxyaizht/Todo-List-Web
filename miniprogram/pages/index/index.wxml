@@ -17,6 +17,7 @@
       maxlength="200"
       confirm-type="done"
       confirm-hold="{{true}}"
+      hold-keyboard="{{true}}"
       focus="{{inputFocus}}"
       bindinput="onInput"
       bindconfirm="addTodo"

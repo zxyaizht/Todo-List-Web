@@ -181,7 +181,7 @@ function savePriority(value) {
   } catch (e) {}
 }
 
-/* ── 音效开关（5 个独立开关） ── */
+/* ── 音效开关 + 音量/频率 ── */
 
 const SOUND_TYPES = [
   { key: 'add', label: '添加任务' },
@@ -191,20 +191,29 @@ const SOUND_TYPES = [
   { key: 'clearAll', label: '清空全部' },
 ]
 
+// 音效的全局参数：volume 0~1；frequency 是"基准频率"，用来换算播放倍率（见 sound.js）
+const SOUND_DEFAULTS = { volume: 1, frequency: 523 }
+
 function loadSoundSettings() {
-  const defaults = {}
-  SOUND_TYPES.forEach((s) => { defaults[s.key] = true })
+  const merged = { ...SOUND_DEFAULTS }
+  SOUND_TYPES.forEach((s) => { merged[s.key] = true })
   try {
     const raw = wx.getStorageSync(SOUND_KEY)
-    if (!raw) return defaults
+    if (!raw) return merged
     const stored = typeof raw === 'string' ? JSON.parse(raw) : raw
-    const merged = { ...defaults }
+    if (!stored) return merged
     SOUND_TYPES.forEach((s) => {
-      if (stored && typeof stored[s.key] === 'boolean') merged[s.key] = stored[s.key]
+      if (typeof stored[s.key] === 'boolean') merged[s.key] = stored[s.key]
     })
+    if (typeof stored.volume === 'number' && isFinite(stored.volume)) {
+      merged.volume = Math.min(1, Math.max(0, stored.volume))
+    }
+    if (typeof stored.frequency === 'number' && isFinite(stored.frequency)) {
+      merged.frequency = Math.min(1046, Math.max(262, stored.frequency))
+    }
     return merged
   } catch (e) {
-    return defaults
+    return merged
   }
 }
 
@@ -224,6 +233,7 @@ module.exports = {
   MAX_HISTORY,
   MAX_CUSTOM_COLORS,
   SOUND_TYPES,
+  SOUND_DEFAULTS,
   HISTORY_TITLES,
   loadTodos,
   saveTodos,

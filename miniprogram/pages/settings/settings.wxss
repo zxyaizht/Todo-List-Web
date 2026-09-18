@@ -175,6 +175,43 @@
   color: var(--text);
 }
 
+/* 音量 / 频率滑杆（slider 是原生组件，颜色用属性传主题色） */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 18rpx 0 6rpx;
+  border-top: 2rpx solid var(--border);
+}
+
+.slider-label {
+  flex-shrink: 0;
+  width: 72rpx;
+  font-size: 26rpx;
+  color: var(--text-muted);
+}
+
+.slider {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.slider-value {
+  flex-shrink: 0;
+  width: 118rpx;
+  text-align: right;
+  font-size: 24rpx;
+  color: var(--text-light);
+}
+
+.slider-tip {
+  padding-top: 10rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+  color: var(--text-light);
+}
+
 /* 自绘开关：原生 switch 在模拟器里创建开销较大，这里用两个 view 实现，
    顺便让开关颜色跟随主题色 */
 .toggle {

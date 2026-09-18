@@ -163,6 +163,25 @@ check('输入时不逐字 setData（值暂存页面属性）', !bodyOf(indexJs, 
 check('加完任务会重新聚焦输入框', bodyOf(indexJs, 'addTodo').includes('keepInputFocus'))
 check('失焦回调把 inputFocus 置 false', bodyOf(indexJs, 'onInputBlur').includes('inputFocus'))
 
+/* 预设色回填自定义输入框 */
+check('点预设色会把色码填进自定义输入框', bodyOf(settingsJs, 'pickTheme').includes('customInput'))
+
+/* 音效参数：音量 + 频率滑杆（颜色跟随主题） */
+const settingsWxml = read(path.join(ROOT, 'pages', 'settings', 'settings.wxml'))
+check('设置页有音量与频率两个滑杆', (settingsWxml.match(/<slider/g) || []).length === 2)
+check('滑杆颜色用主题色', /activeColor="\{\{theme\}\}"/.test(settingsWxml) && /block-color="\{\{theme\}\}"/.test(settingsWxml))
+check('滑杆绑定了 change 回调', /bindchange="onVolumeChange"/.test(settingsWxml) && /bindchange="onFreqChange"/.test(settingsWxml))
+check('定义了 onVolumeChange', bodyOf(settingsJs, 'onVolumeChange') !== '')
+check('定义了 onFreqChange', bodyOf(settingsJs, 'onFreqChange') !== '')
+const storageJs = read(path.join(ROOT, 'utils', 'storage.js'))
+check('音量/频率有默认值且做了范围校验', storageJs.includes('SOUND_DEFAULTS') && storageJs.includes('merged.frequency = Math.min'))
+const soundJsSrc = read(path.join(ROOT, 'utils', 'sound.js'))
+check('播放时应用音量', soundJsSrc.includes('ctx.volume'))
+check('播放时按频率换算播放倍率', soundJsSrc.includes('ctx.playbackRate'))
+
+/* 选优先级时不该收起键盘 */
+check('输入框保持键盘（hold-keyboard）', /hold-keyboard="\{\{true\}\}"/.test(indexWxml))
+
 /* 交互约定（与网页版一致）：
  * 单个删除立即执行、不弹确认框（回收站就是后悔药）；
  * 批量 / 清空类操作必须二次确认，避免一次误删一片。 */
