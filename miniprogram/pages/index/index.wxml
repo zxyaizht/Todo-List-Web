@@ -1,12 +1,12 @@
 <view class="app" style="{{themeStyle}}">
   <view class="header">
-    <view class="header-title">📝 我的待办清单</view>
-    <view class="header-sub">记录你的每一项任务</view>
-  </view>
-
-  <view class="topbar">
-    <view class="topbar-btn" bindtap="goHistory">🕘 历史记录{{historyCount > 0 ? ' (' + historyCount + ')' : ''}}</view>
-    <view class="topbar-btn" bindtap="goSettings">⚙️ 设置</view>
+    <view class="header-main">
+      <view class="header-title">📝 我的待办清单</view>
+      <view class="header-sub">记录你的每一项任务</view>
+    </view>
+    <!-- 齿轮放在页面内容的右上角：小程序的胶囊按钮在导航栏里，
+         页面内容本就在导航栏下方，这里再留出间距，避免误触 -->
+    <view class="settings-gear" bindtap="goSettings" aria-label="设置">⚙️</view>
   </view>
 
   <view class="form">
@@ -26,15 +26,19 @@
     <view class="form-btn" bindtap="addTodo">➕ 添加</view>
   </view>
 
-  <view class="priority-select">
-    <text class="priority-label">优先级</text>
-    <view
-      wx:for="{{priorityOrder}}"
-      wx:key="*this"
-      class="priority-option priority-{{item}} {{priority === item ? 'selected' : ''}}"
-      data-priority="{{item}}"
-      bindtap="pickPriority"
-    >{{priorityLabels[item]}}</view>
+  <!-- 优先级与历史记录并排一行，整体更紧凑 -->
+  <view class="priority-row">
+    <view class="priority-select">
+      <text class="priority-label">优先级</text>
+      <view
+        wx:for="{{priorityOrder}}"
+        wx:key="*this"
+        class="priority-option priority-{{item}} {{priority === item ? 'selected' : ''}}"
+        data-priority="{{item}}"
+        bindtap="pickPriority"
+      >{{priorityLabels[item]}}</view>
+    </view>
+    <view class="history-btn" bindtap="goHistory">🕘 历史记录{{historyCount > 0 ? ' (' + historyCount + ')' : ''}}</view>
   </view>
 
   <view class="search">

@@ -105,6 +105,27 @@ const ca = estimateFreq(pianoA, 0.02, 0.1)
 const cb = estimateFreq(pianoB, 0.02, 0.1)
 checkNear('钢琴音高翻倍 → 过零率也翻倍', cb, ca * 2, 0.05)
 
+lines.push('--- 响度（用户反馈"调到 100% 还是很小声"，已归一化拉满） ---')
+function peakOf(buf) {
+  const v = new DataView(buf)
+  let max = 0
+  for (let i = 0; i < sampleCount(buf); i++) {
+    const s = Math.abs(v.getInt16(44 + i * 2, true))
+    if (s > max) max = s
+  }
+  return max / 32767
+}
+checkNear('priority 峰值接近满刻度', peakOf(synth.soundWav('priority', synth.REF_FREQ)), 0.92, 0.03)
+checkNear('钢琴音峰值接近满刻度', peakOf(synth.pianoWav(523.25)), 0.9, 0.03)
+check(
+  '5 个事件音效都够响（峰值 ≥ 0.85）',
+  ['add', 'priority', 'delete', 'clearDone', 'clearAll'].every((k) => peakOf(synth.soundWav(k, synth.REF_FREQ)) >= 0.85),
+  true
+)
+check('最低音 A0 也拉满', peakOf(synth.soundWav('add', core.keyToFreq(0))) >= 0.85, true)
+check('最高音 C8 也拉满', peakOf(synth.soundWav('add', core.keyToFreq(87))) >= 0.85, true)
+check('不削波（峰值不超过满刻度）', peakOf(synth.soundWav('clearAll', synth.REF_FREQ)) <= 1, true)
+
 lines.push('--- 边界 ---')
 check('未知音效返回 null', synth.soundWav('nope', 523), null)
 check('5 个事件音效都有定义', Object.keys(synth.SOUND_SPECS).length, 5)

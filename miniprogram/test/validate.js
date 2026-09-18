@@ -200,6 +200,21 @@ check('启动时放宽音频可闻性（setInnerAudioOption）', appJsSrc.includ
 /* 选优先级时不该收起键盘 */
 check('输入框保持键盘（hold-keyboard）', /hold-keyboard="\{\{true\}\}"/.test(indexWxml))
 
+/* 界面调整：齿轮在右上角、历史记录与优先级同行、操作按钮文字换行 */
+const indexWxmlUi = read(path.join(ROOT, 'pages', 'index', 'index.wxml'))
+const appWxssUi = read(path.join(ROOT, 'app.wxss'))
+const indexWxssUi = read(path.join(ROOT, 'pages', 'index', 'index.wxss'))
+check('设置已改为右上角齿轮', /class="settings-gear"/.test(indexWxmlUi) && /\.settings-gear\s*\{/.test(indexWxssUi))
+check('齿轮仍绑定 goSettings', /class="settings-gear"[^>]*bindtap="goSettings"/.test(indexWxmlUi))
+check('齿轮定位在页面内容区（导航栏下方，避开胶囊）', /\.settings-gear\s*\{[\s\S]*?margin-top:/.test(indexWxssUi))
+check('历史记录与优先级同一行', /class="priority-row"/.test(indexWxmlUi) && /class="history-btn"/.test(indexWxmlUi))
+check('旧的 topbar 已移除', !/topbar/.test(indexWxmlUi) && !/topbar/.test(indexWxssUi))
+check('操作按钮文字允许换行', /\.action-btn\s*\{[\s\S]*?white-space:\s*normal/.test(appWxssUi))
+check('操作按钮不再裁掉文字', !/\.action-btn\s*\{[\s\S]*?overflow:\s*hidden/.test(appWxssUi))
+
+/* 音效响度已拉满 */
+check('合成做了归一化（响度拉满）', read(path.join(ROOT, 'utils', 'synth.js')).includes('SOUND_PEAK'))
+
 /* 交互约定（与网页版一致）：
  * 单个删除立即执行、不弹确认框（回收站就是后悔药）；
  * 批量 / 清空类操作必须二次确认，避免一次误删一片。 */

@@ -12,6 +12,11 @@ const SAMPLE_RATE = 22050
 // 音效的基准音高：「添加任务」的第一个音。频率设置就是按它整体移调的。
 const REF_FREQ = 523.25
 
+/* 归一化目标峰值。各音色的包络峰值原来只有 0.1~0.18，
+ * 用户反馈"音量调到 100% 还是很轻"——归一化能在不削波的前提下把响度拉满。 */
+const SOUND_PEAK = 0.92
+const PIANO_PEAK = 0.9
+
 /* 5 个事件音效。type 是波形，delay 是相对开始的延迟（秒）。
  * 注：priority 原来只有 0.06s / 音量 0.08，实测几乎听不见，
  * 这里提到 0.09s / 0.18（用户反馈"设置优先级时没有音效"）。 */
@@ -110,6 +115,19 @@ function renderPiano(f0) {
   return out
 }
 
+/* 把采样归一到目标峰值：不削波的前提下尽量响，同时保持原有包络形状。 */
+function normalize(samples, peak) {
+  let max = 0
+  for (let i = 0; i < samples.length; i++) {
+    const v = samples[i] < 0 ? -samples[i] : samples[i]
+    if (v > max) max = v
+  }
+  if (max <= 0) return samples
+  const k = peak / max
+  for (let i = 0; i < samples.length; i++) samples[i] *= k
+  return samples
+}
+
 // 16bit 单声道 PCM 的 WAV 头 + 数据
 function toWavBuffer(samples) {
   const dataLength = samples.length * 2
@@ -143,18 +161,21 @@ function soundWav(name, freq) {
   const tones = SOUND_SPECS[name]
   if (!tones) return null
   const scale = freq / REF_FREQ
-  return toWavBuffer(renderTones(tones, scale))
+  return toWavBuffer(normalize(renderTones(tones, scale), SOUND_PEAK))
 }
 
 // 某个频率下的钢琴音 WAV
 function pianoWav(freq) {
-  return toWavBuffer(renderPiano(freq))
+  return toWavBuffer(normalize(renderPiano(freq), PIANO_PEAK))
 }
 
 module.exports = {
   SAMPLE_RATE,
   REF_FREQ,
+  SOUND_PEAK,
+  PIANO_PEAK,
   SOUND_SPECS,
+  normalize,
   renderTones,
   renderPiano,
   toWavBuffer,

@@ -1,19 +1,48 @@
-.topbar {
+/* 顶部：左边标题、右边齿轮。
+   齿轮是页面内容的一部分（内容本来就在导航栏下方），并额外往下让了一点，
+   和导航栏右上角的胶囊按钮拉开距离，避免误触 */
+.header {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 16rpx;
-  margin-bottom: 20rpx;
 }
 
-.topbar-btn {
-  flex: 1;
-  padding: 16rpx 0;
+.header-main {
+  min-width: 0;
+}
+
+.settings-gear {
+  flex-shrink: 0;
+  width: 72rpx;
+  height: 72rpx;
+  line-height: 68rpx;
   text-align: center;
-  font-size: 26rpx;
+  font-size: 34rpx;
+  background: rgba(255, 255, 255, 0.8);
+  border: 2rpx solid rgba(var(--primary-rgb), 0.2);
+  border-radius: 50%;
+  margin-top: 6rpx;
+}
+
+/* 优先级与历史记录同一行，页面更紧凑 */
+.priority-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.history-btn {
+  flex-shrink: 0;
+  padding: 12rpx 22rpx;
+  font-size: 24rpx;
   font-weight: 600;
   color: var(--primary);
-  background: rgba(255, 255, 255, 0.75);
-  border: 2rpx solid rgba(var(--primary-rgb), 0.2);
-  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  border: 2rpx solid rgba(var(--primary-rgb), 0.25);
+  border-radius: 999rpx;
 }
 
 .search-icon {
