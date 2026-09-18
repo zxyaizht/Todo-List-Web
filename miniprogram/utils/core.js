@@ -323,23 +323,44 @@ function highlightSegments(text, indices) {
   return segs
 }
 
-// filter + 搜索 + 排序，返回 [{ todo, indices, segments }]
-function getVisibleItems(items, view) {
+// filter + 搜索 + 排序，**不做高亮分段**：分段只给当前页那几条算就够了
+function queryItems(items, view) {
   const scoped = getFilteredItems(items, view.filter, view.priority)
   const q = String(view.search || '').trim()
   let visible
   if (!q) {
-    visible = scoped.map((todo) => ({ todo, indices: null, segments: highlightSegments(todo.text, null) }))
+    visible = scoped.map((todo) => ({ todo, indices: null }))
   } else {
     visible = []
     for (const todo of scoped) {
       const result = fuzzyMatch(todo.text, q)
-      if (result.matched) {
-        visible.push({ todo, indices: result.indices, segments: highlightSegments(todo.text, result.indices) })
-      }
+      if (result.matched) visible.push({ todo, indices: result.indices })
     }
   }
   return sortVisibleItems(visible, view.sort)
+}
+
+// 带上高亮分段（条目多时别用这个，用 queryItems + 只给当前页算分段）
+function getVisibleItems(items, view) {
+  return queryItems(items, view).map((x) => ({
+    todo: x.todo,
+    indices: x.indices,
+    segments: highlightSegments(x.todo.text, x.indices),
+  }))
+}
+
+// 一次拿到：过滤后的全量、页码信息、当前页那几条（只给这几条算高亮分段）
+function getPageItems(items, view) {
+  const visible = queryItems(items, view)
+  const totalPages = getTotalPages(visible.length)
+  const page = clampPage(view.page, totalPages)
+  const start = (page - 1) * PAGE_SIZE
+  return {
+    visible,
+    page,
+    totalPages,
+    pageItems: visible.slice(start, start + PAGE_SIZE),
+  }
 }
 
 /* ── 分页 ── */
@@ -386,7 +407,9 @@ module.exports = {
   sortVisibleItems,
   fuzzyMatch,
   highlightSegments,
+  queryItems,
   getVisibleItems,
+  getPageItems,
   PAGE_SIZE,
   getTotalPages,
   clampPage,

@@ -7,9 +7,9 @@ const app = getApp()
 // 回收站的视图状态与主列表各自独立
 const view = { search: '', filter: 'all', sort: core.DEFAULT_SORT, priority: 'all', page: 1 }
 
-function decorate(rec, segments) {
+// 只给要显示的条目做高亮分段
+function decorate(rec, indices) {
   const isColor = rec.kind === 'color'
-  const segs = segments || [{ v: rec.text, hit: false }]
   return {
     id: rec.id,
     text: rec.text,
@@ -18,7 +18,7 @@ function decorate(rec, segments) {
     priority: rec.priority,
     priorityLabel: core.PRIORITY_LABELS[rec.priority] || '中',
     // 补一个下标当 wx:key（片段内容可能重复，不能用内容做 key）
-    segments: segs.map((s, i) => ({ v: s.v, hit: s.hit, i })),
+    segments: core.highlightSegments(rec.text, indices).map((s, i) => ({ v: s.v, hit: s.hit, i })),
     dateText: core.formatDeletedAt(rec.deletedAt),
     kindLabel: isColor ? '自定义色' : '',
   }
@@ -47,25 +47,22 @@ Page({
     emptyDesc: '删除任务后，它们会先放到这里，可随时恢复',
   },
 
-  onShow() {
+  // 数据在 onLoad 里就准备好：navigateTo 每次都会新建页面实例，
+  // 这样第一次绘制就是完整内容，不会出现"先空白、再填充"的延迟感。
+  onLoad() {
     this.setData({ themeStyle: app.globalData.themeStyle })
     this.refresh()
-  },
-
-  onUnload() {
-    sound.release()
   },
 
   refresh() {
     const history = store.loadHistory()
     const byPriority = core.getFilteredItems(history, 'all', view.priority)
     const completed = byPriority.filter((t) => t.done).length
-    const visible = core.getVisibleItems(history, view)
-    const totalPages = core.getTotalPages(visible.length)
-    view.page = core.clampPage(view.page, totalPages)
-
-    const start = (view.page - 1) * core.PAGE_SIZE
-    const pageItems = visible.slice(start, start + core.PAGE_SIZE)
+    // 一次拿到过滤结果 + 页码 + 当前页条目（分段只算当前页这几条）
+    const pageInfo = core.getPageItems(history, view)
+    const visible = pageInfo.visible
+    view.page = pageInfo.page
+    const pageItems = pageInfo.pageItems
     const scopeCount = core.getFilteredItems(history, view.filter, view.priority).length
 
     let hint = ''
@@ -81,12 +78,12 @@ Page({
     }
 
     this.setData({
-      items: pageItems.map((x) => decorate(x.todo, x.segments)),
+      items: pageItems.map((x) => decorate(x.todo, x.indices)),
       total: history.length,
       completed,
       incomplete: byPriority.length - completed,
       visibleCount: visible.length,
-      totalPages,
+      totalPages: pageInfo.totalPages,
       page: view.page,
       search: view.search,
       filter: view.filter,

@@ -1,5 +1,6 @@
 const core = require('./utils/core')
 const store = require('./utils/storage')
+const sound = require('./utils/sound')
 
 App({
   globalData: {
@@ -9,6 +10,12 @@ App({
 
   onLaunch() {
     this.applyTheme(store.loadTheme())
+  },
+
+  // 音频实例是模块级共享的，只能在 App 级释放；
+  // 放到页面 onUnload 里会把别的页面正在用的实例一起销毁（曾这么写，已修正）
+  onHide() {
+    sound.release()
   },
 
   // 应用主题色：算出 CSS 变量串供页面根节点用，同时同步导航栏颜色

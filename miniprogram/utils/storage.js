@@ -73,6 +73,11 @@ function saveHistory(list) {
   writeList(HISTORY_KEY, list)
 }
 
+// 只需要数量时别走 map：历史最多 200 条，为显示一个数字整体映射是浪费
+function countHistory() {
+  return readList(HISTORY_KEY).length
+}
+
 function pushToHistory(items, options) {
   const opts = options || {}
   if (!items || !items.length || opts.skipHistory) return
@@ -224,6 +229,7 @@ module.exports = {
   saveTodos,
   loadHistory,
   saveHistory,
+  countHistory,
   pushToHistory,
   loadTheme,
   saveTheme,

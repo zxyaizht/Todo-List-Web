@@ -15,12 +15,9 @@ Page({
     allSoundOn: true,
   },
 
-  onShow() {
+  // 同回收站：数据在 onLoad 备好，第一次绘制即完整
+  onLoad() {
     this.refresh()
-  },
-
-  onUnload() {
-    sound.release()
   },
 
   refresh() {

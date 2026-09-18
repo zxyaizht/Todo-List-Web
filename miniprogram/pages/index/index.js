@@ -9,8 +9,8 @@ const view = { search: '', filter: 'all', sort: core.DEFAULT_SORT, priority: 'al
 
 let selectedPriority = 'medium'
 
-function decorate(item, segments) {
-  const segs = segments || [{ v: item.text, hit: false }]
+// 只给要显示的条目做高亮分段（原来是对全部可见条目都算一遍，纯浪费）
+function decorate(item, indices) {
   return {
     id: item.id,
     text: item.text,
@@ -18,7 +18,7 @@ function decorate(item, segments) {
     priority: item.priority,
     priorityLabel: core.PRIORITY_LABELS[item.priority] || '中',
     // 补一个下标当 wx:key（片段内容可能重复，不能用内容做 key）
-    segments: segs.map((s, i) => ({ v: s.v, hit: s.hit, i })),
+    segments: core.highlightSegments(item.text, indices).map((s, i) => ({ v: s.v, hit: s.hit, i })),
     dateText: core.formatCreatedAt(item.createdAt),
   }
 }
@@ -52,18 +52,21 @@ Page({
     emptyIcon: '',
   },
 
+  // 首屏在 onLoad 里就渲染好，避免启动后"先空白再填充"
   onLoad() {
     selectedPriority = store.loadPriority()
-    this.setData({ priority: selectedPriority })
-  },
-
-  onShow() {
-    this.setData({ themeStyle: app.globalData.themeStyle })
+    this.setData({ priority: selectedPriority, themeStyle: app.globalData.themeStyle })
     this.refresh()
+    this.loaded = true
   },
 
-  onUnload() {
-    sound.release()
+  // onShow 仍要刷新：从设置改完主题、或从回收站恢复任务回来，数据都可能变了。
+  // 首次进入时 onLoad 已经渲染过，跳过以免重复做一遍。
+  onShow() {
+    if (this.loaded) {
+      this.setData({ themeStyle: app.globalData.themeStyle })
+      this.refresh()
+    }
   },
 
   /* ── 数据刷新 ── */
@@ -72,12 +75,11 @@ Page({
     const todos = store.loadTodos()
     const filteredByPriority = core.getFilteredItems(todos, 'all', view.priority)
     const completed = filteredByPriority.filter((t) => t.done).length
-    const visible = core.getVisibleItems(todos, view)
-    const totalPages = core.getTotalPages(visible.length)
-    view.page = core.clampPage(view.page, totalPages)
-
-    const start = (view.page - 1) * core.PAGE_SIZE
-    const pageItems = visible.slice(start, start + core.PAGE_SIZE)
+    // 一次拿到过滤结果 + 页码 + 当前页条目（分段只算当前页这几条）
+    const pageInfo = core.getPageItems(todos, view)
+    const visible = pageInfo.visible
+    view.page = pageInfo.page
+    const pageItems = pageInfo.pageItems
     const scopeCount = core.getFilteredItems(todos, view.filter, view.priority).length
 
     // 空态文案：优先提示"没搜到"，其次按筛选说明
@@ -113,14 +115,14 @@ Page({
     }
 
     this.setData({
-      items: pageItems.map((x) => decorate(x.todo, x.segments)),
+      items: pageItems.map((x) => decorate(x.todo, x.indices)),
       total: todos.length,
       completed,
       incomplete: filteredByPriority.length - completed,
       visibleCount: visible.length,
-      totalPages,
+      totalPages: pageInfo.totalPages,
       page: view.page,
-      historyCount: store.loadHistory().length,
+      historyCount: store.countHistory(),
       search: view.search,
       filter: view.filter,
       priorityFilter: view.priority,
