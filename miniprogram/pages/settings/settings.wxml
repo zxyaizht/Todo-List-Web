@@ -77,15 +77,15 @@
       <slider
         class="slider"
         min="0"
-        max="100"
+        max="75"
         step="1"
-        value="{{soundVolume}}"
+        value="{{soundVolumeDb}}"
         activeColor="{{theme}}"
         block-color="{{theme}}"
         backgroundColor="#e2e8f0"
         bindchange="onVolumeChange"
       />
-      <text class="slider-value">{{soundVolume}}%</text>
+      <text class="slider-value">{{soundVolumeDb}} dB</text>
     </view>
     <view class="slider-row">
       <text class="slider-label">频率</text>
@@ -102,7 +102,7 @@
       />
       <text class="slider-value">{{soundFreq}} Hz</text>
     </view>
-    <view class="slider-tip">频率是整体变调，以「添加任务」的音高为基准（受平台播放倍率 0.5~2 限制）。</view>
+    <view class="slider-tip">音量用 0~75 的相对分贝刻度（75 为满档）；频率以「添加任务」的音高为基准整体变调。二者都受手机系统音量与机型影响，无法做到绝对声压级。</view>
   </view>
 
   <view class="footnote">数据保存在本机，不会上传服务器。</view>

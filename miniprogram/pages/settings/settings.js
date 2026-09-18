@@ -14,8 +14,8 @@ Page({
     customColors: [],
     soundRows: [],
     allSoundOn: true,
-    // 音效全局参数（滑杆用百分比 / Hz 显示，存的是 0~1 与 Hz）
-    soundVolume: 100,
+    // 音效全局参数（滑杆显示 dB 与 Hz，存的是 dB 与 Hz）
+    soundVolumeDb: 75,
     soundFreq: 523,
   },
 
@@ -43,7 +43,7 @@ Page({
         on: !!soundSettings[s.key],
       })),
       allSoundOn: store.SOUND_TYPES.every((s) => !!soundSettings[s.key]),
-      soundVolume: Math.round((soundSettings.volume == null ? 1 : soundSettings.volume) * 100),
+      soundVolumeDb: Math.round(soundSettings.volumeDb == null ? core.MAX_VOLUME_DB : soundSettings.volumeDb),
       soundFreq: Math.round(soundSettings.frequency || 523),
     })
   },
@@ -148,11 +148,11 @@ Page({
   /* ── 音效参数：音量 / 频率（滑杆松手即保存并试听） ── */
 
   onVolumeChange(e) {
-    const percent = e.detail.value
+    const db = e.detail.value
     const settings = store.loadSoundSettings()
-    settings.volume = percent / 100
+    settings.volumeDb = db
     store.saveSoundSettings(settings)
-    this.setData({ soundVolume: percent })
+    this.setData({ soundVolumeDb: db })
     sound.play('priority')
   },
 

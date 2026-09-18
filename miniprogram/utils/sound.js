@@ -1,6 +1,7 @@
 /* 音效播放
  * 网页版用 Web Audio 现场合成，小程序没有等价能力，所以改成播放预生成的 wav
  * （见 tools/gen-sounds.js，音色与网页版一一对应）。 */
+const core = require('./core')
 const store = require('./storage')
 
 const SOUND_FILES = {
@@ -19,8 +20,8 @@ const PITCH_REF = 523.25
 // wav 是预先合成好的，没法在播放时改音高，
 // 所以用播放倍率来变调（0.5~2.0，平台限制）；音量则可以直接设。
 function applyParams(ctx, settings) {
-  const volume = typeof settings.volume === 'number' ? settings.volume : 1
-  ctx.volume = Math.min(1, Math.max(0, volume))
+  const db = typeof settings.volumeDb === 'number' ? settings.volumeDb : core.MAX_VOLUME_DB
+  ctx.volume = core.dbToGain(db)
   const hz = typeof settings.frequency === 'number' ? settings.frequency : PITCH_REF
   try {
     ctx.playbackRate = Math.min(2, Math.max(0.5, hz / PITCH_REF))

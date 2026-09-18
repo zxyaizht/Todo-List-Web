@@ -14,6 +14,16 @@ App({
 
   onLaunch() {
     perf.tap('启动小程序')
+    // 尽量让音效可闻：iOS 上忽略静音开关、安卓优先走扬声器。
+    // 注意：这**不能**突破系统音量——小程序音频最终仍会被系统音量衰减，
+    // 没法做到"设了多少分贝就一定是多少分贝"（手机也无法自我校准声压级）。
+    try {
+      wx.setInnerAudioOption({
+        mixWithOther: true,
+        obeyMuteSwitch: false,
+        speakerOn: true,
+      })
+    } catch (e) {}
     this.applyTheme(store.loadTheme())
   },
 

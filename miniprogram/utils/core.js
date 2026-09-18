@@ -147,6 +147,22 @@ function parseColor(input) {
   return null
 }
 
+/* ── 音量换算 ──
+ * 滑杆给的是 0~75 的「分贝档位」（相对刻度，**不是**实测声压级：
+ * 手机无法自我校准，真实响度还取决于机型喇叭与系统音量）。
+ * 用平方律映射到播放器的 0~1 增益：低档位变化更细腻，接近人耳感受。 */
+const MAX_VOLUME_DB = 75
+
+function dbToGain(db) {
+  const v = Math.min(MAX_VOLUME_DB, Math.max(0, Number(db) || 0))
+  return Math.pow(v / MAX_VOLUME_DB, 2)
+}
+
+function gainToDb(gain) {
+  const g = Math.min(1, Math.max(0, Number(gain) || 0))
+  return Math.round(Math.sqrt(g) * MAX_VOLUME_DB)
+}
+
 /* ── 日期显示 ── */
 
 function pad2(n) {
@@ -386,6 +402,9 @@ module.exports = {
   isLightColor,
   parseColor,
   NAMED_COLORS,
+  MAX_VOLUME_DB,
+  dbToGain,
+  gainToDb,
   formatCreatedAt,
   formatDeletedAt,
   RAINBOW_COLORS,
