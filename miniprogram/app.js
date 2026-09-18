@@ -57,4 +57,14 @@ App({
     store.saveTheme(color)
     return color
   },
+
+  /* 导航栏（含刘海 / 状态栏那一块）同步。
+   * 为什么要单独一个方法：**wx.setNavigationBarColor 只作用于"当前页面"**，
+   * 而切换页面时导航栏会回落到 app.json 里的静态配色（默认蓝）。
+   * 只在 onLaunch / 改主题时设置是不够的 —— 从设置页改完主题返回主页，
+   * 主页的导航栏就变回蓝色了（用户报「刘海颜色有时候丢失与主题的跟随」）。
+   * 现在每个页面的 onShow 与 onReady 都调一次，保证任何时候都跟随主题。 */
+  syncNavigationBar() {
+    return this.applyTheme(this.globalData.theme)
+  },
 })

@@ -11,7 +11,9 @@ const SOUND_KEY = 'todo-sound-settings'
 const PRIORITY_KEY = 'todo-priority'
 const COLORS_KEY = 'todo-custom-colors'
 const MAX_HISTORY = 200
-const MAX_CUSTOM_COLORS = 8
+// 自定义色数量**不限**（用户要求）：只受小程序存储上限约束。
+// 列表用分页展示，条数再多也只渲染当前页，不会拖慢页面。
+const MAX_CUSTOM_COLORS = Infinity
 
 const HISTORY_TITLES = {
   color: '自定义色',

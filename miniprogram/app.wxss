@@ -248,6 +248,11 @@ page {
   margin-bottom: 12rpx;
 }
 
+/* 挪到任务清单下方的操作行（清空类 / 恢复类）：和上面的清单或分页拉开距离 */
+.action-row-bottom {
+  margin-top: 28rpx;
+}
+
 .action-btn {
   flex: 1;
   min-width: 0;

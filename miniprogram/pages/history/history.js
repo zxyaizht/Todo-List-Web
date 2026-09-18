@@ -59,6 +59,14 @@ Page({
 
   onReady() {
     perf.finish('历史记录')
+    // 页面切换过程中设导航栏可能被忽略，渲染完成后再补一次
+    app.syncNavigationBar()
+  },
+
+  // 导航栏（含刘海/状态栏）只作用于当前页面：切到这个页面要重新跟随一次主题，
+  // 否则会显示 app.json 里的静态配色（用户报「刘海颜色有时候丢失跟随」）
+  onShow() {
+    app.syncNavigationBar()
   },
 
   refresh() {

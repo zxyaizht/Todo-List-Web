@@ -61,17 +61,25 @@ Page({
     selectedPriority = store.loadPriority()
     this.setData({ priority: selectedPriority, themeStyle: app.globalData.themeStyle })
     this.refresh()
-    this.loaded = true
     perf.mark('index 数据就绪')
   },
 
   onReady() {
     perf.finish('主列表首屏')
+    // 页面切换过程中设导航栏可能被忽略，渲染完成后再补一次
+    app.syncNavigationBar()
+    // loaded 放在这里才置位：onLoad 已经把首屏渲染好了，第一次 onShow 必须跳过。
+    // （以前在 onLoad 里置位，而 onShow 总是在 onLoad 之后触发，等于根本没拦住，
+    //   启动时会白跑一遍整页渲染。）
+    this.loaded = true
   },
 
   // onShow 仍要刷新：从设置改完主题、或从回收站恢复任务回来，数据都可能变了。
   // 首次进入时 onLoad 已经渲染过，跳过以免重复做一遍。
   onShow() {
+    // wx.setNavigationBarColor 只作用于当前页面，切页回来必须补一次，
+    // 否则导航栏（含刘海/状态栏）会回落到 app.json 里的静态配色
+    app.syncNavigationBar()
     if (this.loaded) {
       this.setData({ themeStyle: app.globalData.themeStyle })
       this.refresh()

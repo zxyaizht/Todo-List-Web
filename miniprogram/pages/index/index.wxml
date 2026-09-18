@@ -79,18 +79,12 @@
       </view>
     </view>
 
-    <!-- 操作行：两行各 4 个 -->
+    <!-- 操作行（第一行）：筛选 + 完成所有（清空类那 4 个挪到了清单下方） -->
     <view class="action-row">
       <view class="action-btn {{filter === 'all' ? 'filter-active' : ''}}" data-filter="all" bindtap="setFilter">全部</view>
       <view class="action-btn complete {{incomplete === 0 ? 'disabled' : ''}}" bindtap="completeAll">✅ 完成所有{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
       <view class="action-btn {{filter === 'done' ? 'filter-active' : ''}}" data-filter="done" bindtap="setFilter">已完成 ({{completed}})</view>
       <view class="action-btn {{filter === 'active' ? 'filter-active' : ''}}" data-filter="active" bindtap="setFilter">未完成 ({{incomplete}})</view>
-    </view>
-    <view class="action-row">
-      <view class="action-btn" bindtap="clearAll">⚡ 清空全部</view>
-      <view class="action-btn" bindtap="completeClear">✅ 完成所有并清空</view>
-      <view class="action-btn {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成{{completed > 0 ? ' (' + completed + ')' : ''}}</view>
-      <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
     </view>
   </block>
 
@@ -123,5 +117,14 @@
     <view class="page-btn {{page <= 1 ? 'disabled' : ''}}" bindtap="prevPage">‹ 上一页</view>
     <text class="page-indicator">第 {{page}} / {{totalPages}} 页</text>
     <view class="page-btn {{page >= totalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页 ›</view>
+  </view>
+
+  <!-- 操作行（第二行）：清空类 4 个。用户要求与任务清单上下对调，所以放到清单下方；
+       排序 / 优先级筛选 / 页码都保持原位不动。 -->
+  <view wx:if="{{total > 0}}" class="action-row action-row-bottom">
+    <view class="action-btn" bindtap="clearAll">⚡ 清空全部</view>
+    <view class="action-btn" bindtap="completeClear">✅ 完成所有并清空</view>
+    <view class="action-btn {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成{{completed > 0 ? ' (' + completed + ')' : ''}}</view>
+    <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
   </view>
 </view>

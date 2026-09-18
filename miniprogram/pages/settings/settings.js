@@ -5,9 +5,9 @@ const perf = require('../../utils/perf')
 
 const app = getApp()
 
-// 「最近用的颜色」每页几个：色块是 4 列网格，一页 4 个正好铺满一行，
-// 翻页像翻卡片一样整齐（主列表 / 历史记录那边是列表，每页 5 条）
-const COLORS_PAGE_SIZE = 4
+// 「最近用的颜色」每页几个：与主任务清单一致（PAGE_SIZE = 5）；
+// 色块网格也跟着改成 5 列，这样一页正好铺满一行，翻页像翻卡片一样整齐
+const COLORS_PAGE_SIZE = 5
 
 Page({
   data: {
@@ -40,6 +40,14 @@ Page({
 
   onReady() {
     perf.finish('设置')
+    // 页面切换过程中设导航栏可能被忽略，渲染完成后再补一次
+    app.syncNavigationBar()
+  },
+
+  // 导航栏（含刘海/状态栏）只作用于当前页面：切到这个页面要重新跟随一次主题，
+  // 否则会显示 app.json 里的静态配色（用户报「刘海颜色有时候丢失跟随」）
+  onShow() {
+    app.syncNavigationBar()
   },
 
   refresh() {

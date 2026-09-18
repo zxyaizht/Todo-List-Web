@@ -95,10 +95,11 @@
   color: var(--text-light);
 }
 
+/* 5 列 + 每页 5 个（与主任务清单的 PAGE_SIZE 一致）：一页正好一行，不出现"落单"的色块 */
 .saved-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20rpx 12rpx;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20rpx 8rpx;
 }
 
 .saved-item {

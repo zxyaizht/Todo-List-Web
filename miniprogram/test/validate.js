@@ -250,7 +250,10 @@ check('最近用色有分页控件（复用全局 .pagination）', /class="pagin
   && /bindtap="nextColorPage"/.test(settingsWxmlInput))
 check('分页显示「当前页 / 总页数」', /\{\{customPage\}\} \/ \{\{customTotalPages\}\}/.test(settingsWxmlInput))
 check('只有一页时不显示分页控件', /wx:if="\{\{customTotalPages > 1\}\}"/.test(settingsWxmlInput))
-check('每页 4 个（4 列网格正好一行）', settingsJs.includes('COLORS_PAGE_SIZE = 4'))
+check('每页 5 个（与主任务清单 PAGE_SIZE 一致）', settingsJs.includes('COLORS_PAGE_SIZE = 5'))
+check('自定义色数量不限', storageJs.includes('MAX_CUSTOM_COLORS = Infinity'))
+const settingsWxssInput = read(path.join(ROOT, 'pages', 'settings', 'settings.wxss'))
+check('色块网格 5 列（与每页 5 个对齐，一页一行）', /\.saved-grid\s*\{[\s\S]*?repeat\(5, 1fr\)/.test(settingsWxssInput))
 check('按页切片后才渲染', settingsJs.includes('colors.slice((page - 1) * COLORS_PAGE_SIZE, page * COLORS_PAGE_SIZE)'))
 check('页码越界收敛到首/末页', settingsJs.includes('Math.min(Math.max(1, Number(p) || this.customPage), total)'))
 check('删到不足一页时页码回收到末页', settingsJs.includes('Math.min(Math.max(1, this.customPage || 1), totalPages)'))
@@ -293,8 +296,10 @@ check('回收站批量恢复不弹确认框：history.restoreAll', !bodyOf(histo
 check('主列表有 8 个操作入口（清空/完成类函数齐全）', ['clearAll', 'completeClear', 'clearDone', 'clearIncomplete', 'completeAll'].every((k) => indexJs.includes(k + '(')))
 
 /* 回收站（历史记录页）操作行：用户要求 9 个按钮、三行各 3 个，
-   第二行顺序为「恢复全部 → 恢复已完成 → 恢复未完成」，并去掉「完成所有并清空」 */
-const historyRows = historyWxmlInput.split('<view class="action-row">').slice(1)
+   第二行顺序为「恢复全部 → 恢复已完成 → 恢复未完成」，并去掉「完成所有并清空」
+   注意 split 用的是 '<view class="action-row'（不带收尾引号），
+   因为挪到清单下方的行多带一个 action-row-bottom 类名。 */
+const historyRows = historyWxmlInput.split('<view class="action-row').slice(1)
 const rowHandlers = (chunk) => (chunk.match(/<view class="action-btn[^>]*?bindtap="([a-zA-Z]+)"/g) || [])
   .map((tag) => /bindtap="([a-zA-Z]+)"/.exec(tag)[1])
 const historyRowHandlers = historyRows.map(rowHandlers)
@@ -308,6 +313,35 @@ check('回收站不再有「完成所有并清空」按钮', !/completeClear/.te
 const stripJsComments = (s) => String(s).replace(/\/\/[^\n]*/g, '')
 check('历史页不再有 completeClear 函数（去掉了死代码）', !stripJsComments(historyJs).includes('completeClear'))
 check('主列表的「完成所有并清空」不受影响', /bindtap="completeClear"/.test(indexWxmlInput) && indexJs.includes('completeClear('))
+
+/* 布局：清空/恢复类按钮与任务清单上下对调（用户要求），排序、优先级筛选、页码都不动 */
+const posIn = (src, needle) => src.indexOf(needle)
+check('主列表：筛选+完成所有仍在清单上方', posIn(indexWxmlInput, 'bindtap="completeAll"') < posIn(indexWxmlInput, 'class="list"'))
+check('主列表：排序与优先级筛选仍在最上方', posIn(indexWxmlInput, 'class="list-toolbar"') < posIn(indexWxmlInput, 'class="list"'))
+check('主列表：清空类 4 个挪到清单下方', posIn(indexWxmlInput, 'bindtap="clearAll"') > posIn(indexWxmlInput, 'class="list"'))
+check('主列表：页码仍紧跟在清单之后（在清空之前）',
+  posIn(indexWxmlInput, 'class="pagination"') > posIn(indexWxmlInput, 'class="list"')
+  && posIn(indexWxmlInput, 'class="pagination"') < posIn(indexWxmlInput, 'bindtap="clearAll"'))
+check('主列表：挪下去的操作行有分隔间距', /class="action-row action-row-bottom"/.test(indexWxmlInput))
+check('回收站：筛选行仍在清单上方', posIn(historyWxmlInput, 'bindtap="setFilter"') < posIn(historyWxmlInput, 'class="list"'))
+check('回收站：恢复+清空 6 个挪到清单下方',
+  posIn(historyWxmlInput, 'bindtap="restoreAll"') > posIn(historyWxmlInput, 'class="list"')
+  && posIn(historyWxmlInput, 'bindtap="clearAll"') > posIn(historyWxmlInput, 'class="list"'))
+check('回收站：页码仍在清单与恢复行之间',
+  posIn(historyWxmlInput, 'class="pagination"') > posIn(historyWxmlInput, 'class="list"')
+  && posIn(historyWxmlInput, 'class="pagination"') < posIn(historyWxmlInput, 'bindtap="restoreAll"'))
+check('挪到下方的操作行有间距样式', /\.action-row-bottom\s*\{[\s\S]*?margin-top:/.test(appWxssInput))
+
+/* 导航栏（含刘海/状态栏）必须跟随主题：wx.setNavigationBarColor 只作用于当前页面，
+   所以每个页面 onShow 与 onReady 都要重新同步一次 */
+const appJs = read(path.join(ROOT, 'app.js'))
+check('app.js 提供 syncNavigationBar', /syncNavigationBar\s*\(\s*\)\s*\{/.test(appJs))
+check('syncNavigationBar 会重设导航栏颜色', /setNavigationBarColor/.test(appJs) && /syncNavigationBar[\s\S]*?applyTheme/.test(appJs))
+;['index', 'history', 'settings'].forEach((p) => {
+  const src = read(path.join(ROOT, 'pages', p, p + '.js'))
+  check('页面 onShow 里同步导航栏：' + p, /onShow\s*\(\s*\)\s*\{[\s\S]*?syncNavigationBar/.test(src))
+  check('页面 onReady 里再同步一次导航栏：' + p, /onReady\s*\(\s*\)\s*\{[\s\S]*?syncNavigationBar/.test(src))
+})
 check('排序用 showActionSheet（原生选择器）', indexJs.includes('showActionSheet'))
 check('复制用 wx.setClipboardData', read(path.join(ROOT, 'pages', 'settings', 'settings.js')).includes('setClipboardData'))
 check('存储用 wx.setStorageSync（不是 localStorage）', read(path.join(ROOT, 'utils', 'storage.js')).includes('wx.setStorageSync') && !read(path.join(ROOT, 'utils', 'storage.js')).includes('localStorage'))
