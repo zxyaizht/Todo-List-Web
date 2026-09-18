@@ -3,6 +3,7 @@ const store = require('../../utils/storage')
 const sound = require('../../utils/sound')
 const perf = require('../../utils/perf')
 const pagedit = require('../../utils/pagedit')
+const undo = require('../../utils/undo')
 
 const app = getApp()
 
@@ -146,6 +147,8 @@ Page({
     }
     // 规范化后的色值回填到输入框
     this.setData({ customInput: hex })
+    // 颜色也是数据（会进统一回收站），所以同样记一步撤回
+    undo.push()
     store.rememberCustomColor(hex)
     // 新颜色是插到最前面的（第 1 页），跳到首页让用户立刻看到它
     this.customPage = 1
@@ -181,6 +184,7 @@ Page({
   // 删除单个颜色不弹确认框（与网页版一致）：颜色会先进回收站
   removeColor(e) {
     const hex = e.currentTarget.dataset.hex
+    undo.push()
     store.deleteCustomColor(hex)
     this.refresh()
   },
@@ -194,6 +198,7 @@ Page({
       confirmText: '全部删除',
       success: (res) => {
         if (!res.confirm) return
+        undo.push()
         const count = store.clearAllCustomColors()
         wx.showToast({ title: `已移入回收站 ${count} 个`, icon: 'none' })
         this.refresh()

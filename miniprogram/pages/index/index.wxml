@@ -63,11 +63,18 @@
   </view>
   <view wx:if="{{hint}}" class="search-hint {{hintNoMatch ? 'no-match' : ''}}">{{hint}}</view>
 
-  <block wx:if="{{total > 0}}">
-    <!-- 工具行：排序 + 优先级筛选 -->
-    <view class="list-toolbar">
-      <view class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
-      <view class="priority-filter">
+  <!-- 工具栏：有任务时是「排序 + 撤回/取消撤回 + 优先级筛选」。
+       任务被清空后排序/筛选没意义了，但**撤回箭头必须留着** ——
+       「清空全部」之后正是最需要撤回的时候（列表空了，如果连箭头一起消失就等于没救）。 -->
+  <block wx:if="{{total > 0 || canUndo || canRedo}}">
+    <view class="list-toolbar {{total > 0 ? '' : 'solo'}}">
+      <view wx:if="{{total > 0}}" class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
+      <!-- 撤回 / 取消撤回：夹在排序与优先级筛选中间；实心主题色，与「添加」按钮同色 -->
+      <view class="undo-group">
+        <view class="undo-btn {{canUndo ? '' : 'disabled'}}" bindtap="undoAction" aria-label="撤回">↶</view>
+        <view class="undo-btn {{canRedo ? '' : 'disabled'}}" bindtap="redoAction" aria-label="取消撤回">↷</view>
+      </view>
+      <view wx:if="{{total > 0}}" class="priority-filter">
         <text class="priority-filter-title">优先级</text>
         <view
           wx:for="{{priorityFilterOrder}}"
@@ -78,11 +85,13 @@
         >{{priorityFilterLabels[item]}}</view>
       </view>
     </view>
+  </block>
 
-    <!-- 操作行（第一行）：筛选 + 完成所有（清空类那 4 个挪到了清单下方） -->
+  <block wx:if="{{total > 0}}">
+    <!-- 操作行（第一行）：筛选 + 完成所有/取消所有（清空类那 4 个挪到了清单下方） -->
     <view class="action-row">
       <view class="action-btn {{filter === 'all' ? 'filter-active' : ''}}" data-filter="all" bindtap="setFilter">全部</view>
-      <view class="action-btn complete {{incomplete === 0 ? 'disabled' : ''}}" bindtap="completeAll">✅ 完成所有{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
+      <view class="action-btn complete" bindtap="completeAll">{{completeAllLabel}}</view>
       <view class="action-btn {{filter === 'done' ? 'filter-active' : ''}}" data-filter="done" bindtap="setFilter">已完成 ({{completed}})</view>
       <view class="action-btn {{filter === 'active' ? 'filter-active' : ''}}" data-filter="active" bindtap="setFilter">未完成 ({{incomplete}})</view>
     </view>

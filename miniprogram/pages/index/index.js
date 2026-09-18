@@ -3,6 +3,7 @@ const store = require('../../utils/storage')
 const sound = require('../../utils/sound')
 const perf = require('../../utils/perf')
 const pagedit = require('../../utils/pagedit')
+const undo = require('../../utils/undo')
 
 const app = getApp()
 
@@ -45,6 +46,11 @@ Page({
     total: 0,
     completed: 0,
     incomplete: 0,
+    // 「完成所有」的文案随状态变：还有没完成的 → 完成所有 (N)；全完成了 → 取消所有
+    completeAllLabel: '✅ 完成所有',
+    // 撤回 / 取消撤回 是否可用（决定两个箭头是否置灰）
+    canUndo: false,
+    canRedo: false,
     visibleCount: 0,
     totalPages: 1,
     page: 1,
@@ -91,8 +97,13 @@ Page({
 
   refresh() {
     const todos = store.loadTodos()
-    const filteredByPriority = core.getFilteredItems(todos, 'all', view.priority)
-    const completed = filteredByPriority.filter((t) => t.done).length
+    /* 计数一律用**全部任务**，不随优先级筛选变化。
+     * 这几个数字对应的是「清空已完成 / 清空未完成 / 完成所有 / 取消所有」这些**全局动作**：
+     * 作用范围必须和数字一致，否则一旦筛了优先级就会出现
+     * 「按钮写着取消所有、点下去却把别的优先级的任务也一起取消了」这种坑。
+     * 网页版同样是全量计数，这里与它保持一致。 */
+    const completed = todos.filter((t) => t.done).length
+    const incomplete = todos.length - completed
     // 一次拿到过滤结果 + 页码 + 当前页条目（分段只算当前页这几条）
     const pageInfo = core.getPageItems(todos, view)
     const visible = pageInfo.visible
@@ -136,7 +147,10 @@ Page({
       items: pageItems.map((x) => decorate(x.todo, x.indices)),
       total: todos.length,
       completed,
-      incomplete: filteredByPriority.length - completed,
+      incomplete,
+      completeAllLabel: incomplete > 0 ? `✅ 完成所有 (${incomplete})` : '↩️ 取消所有',
+      canUndo: undo.canUndo(),
+      canRedo: undo.canRedo(),
       visibleCount: visible.length,
       totalPages: pageInfo.totalPages,
       page: view.page,
@@ -177,6 +191,7 @@ Page({
     const fromKeyboard = !!(e && e.detail && typeof e.detail.value === 'string')
     const hadFocus = this.data.inputFocus
 
+    undo.push() // 记一步撤回（必须在改动之前）
     const todos = store.loadTodos()
     const now = Date.now()
     // LIFO：新任务插到数组头部，显示在最上方
@@ -225,6 +240,7 @@ Page({
     const todos = store.loadTodos()
     const todo = todos.find((t) => String(t.id) === String(id))
     if (!todo) return
+    undo.push()
     todo.done = !todo.done
     store.saveTodos(todos)
     this.refresh()
@@ -236,6 +252,8 @@ Page({
     const todos = store.loadTodos()
     const todo = todos.find((t) => String(t.id) === String(id))
     if (!todo) return
+    // 删除 = 任务出栈 + 进回收站，撤回要把两处一起还原（快照里有回收站）
+    undo.push()
     store.saveTodos(todos.filter((t) => String(t.id) !== String(id)))
     store.pushToHistory([todo])
     sound.play('delete')
@@ -256,6 +274,7 @@ Page({
         if (!res.confirm) return
         const text = String(res.content || '').trim()
         if (!text) return
+        undo.push()
         todo.text = text
         store.saveTodos(todos)
         this.refresh()
@@ -310,19 +329,40 @@ Page({
 
   /* ── 批量操作 ── */
 
+  /* 一键全选 / 全不选：
+   * 还有未完成的 → 全部打勾（按钮显示「完成所有 (N)」）；
+   * 都已经完成 → 全部取消勾选（按钮显示「取消所有」）。
+   * 文案由 refresh() 根据 incomplete 算好放进 completeAllLabel。 */
   completeAll() {
     const todos = store.loadTodos()
-    let changed = false
-    todos.forEach((t) => {
-      if (!t.done) {
-        t.done = true
-        changed = true
-      }
-    })
-    if (changed) {
-      store.saveTodos(todos)
-      sound.play('add')
-    }
+    const target = todos.some((t) => !t.done) // 有没完成的 → 目标是"全完成"，否则是"全取消"
+    if (!todos.some((t) => t.done !== target)) return // 已经是目标状态：不动，也不记撤回
+    undo.push()
+    todos.forEach((t) => { t.done = target })
+    store.saveTodos(todos)
+    sound.play('add')
+    this.refresh()
+  },
+
+  /* ── 撤回 / 取消撤回 ── */
+
+  undoAction() {
+    if (!undo.undo()) return
+    this.afterTimeTravel('add')
+  },
+
+  redoAction() {
+    if (!undo.redo()) return
+    this.afterTimeTravel('priority')
+  },
+
+  /* 撤回 / 取消撤回之后统一收尾。
+   * 把筛选切回「全部」并回到第 1 页：被还原的数据可能落在任何一边
+   * （撤回一个"完成"会让任务从已完成回到未完成），只有显示全部才能让用户马上看见结果。 */
+  afterTimeTravel(soundKey) {
+    view.filter = 'all'
+    view.page = 1
+    sound.play(soundKey)
     this.refresh()
   },
 
@@ -334,6 +374,7 @@ Page({
       confirmText: '清空',
       success: (res) => {
         if (!res.confirm) return
+        undo.push()
         const todos = store.loadTodos()
         store.pushToHistory(todos.filter((t) => t.done))
         store.saveTodos(todos.filter((t) => !t.done))
@@ -351,6 +392,7 @@ Page({
       confirmText: '清空',
       success: (res) => {
         if (!res.confirm) return
+        undo.push()
         const todos = store.loadTodos()
         store.pushToHistory(todos.filter((t) => !t.done))
         store.saveTodos(todos.filter((t) => t.done))
@@ -368,6 +410,7 @@ Page({
       confirmText: '清空',
       success: (res) => {
         if (!res.confirm) return
+        undo.push()
         const todos = store.loadTodos()
         store.pushToHistory(todos)
         store.saveTodos([])
@@ -385,6 +428,7 @@ Page({
       confirmText: '确定',
       success: (res) => {
         if (!res.confirm) return
+        undo.push()
         const todos = store.loadTodos()
         todos.forEach((t) => { t.done = true })
         store.pushToHistory(todos)

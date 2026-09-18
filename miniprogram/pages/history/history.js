@@ -3,6 +3,7 @@ const store = require('../../utils/storage')
 const sound = require('../../utils/sound')
 const perf = require('../../utils/perf')
 const pagedit = require('../../utils/pagedit')
+const undo = require('../../utils/undo')
 
 const app = getApp()
 
@@ -72,8 +73,8 @@ Page({
 
   refresh() {
     const history = store.loadHistory()
-    const byPriority = core.getFilteredItems(history, 'all', view.priority)
-    const completed = byPriority.filter((t) => t.done).length
+    // 计数用**全部记录**，不随优先级筛选变化：恢复 / 清空这些按钮的作用范围是整个回收站
+    const completed = history.filter((t) => t.done).length
     // 一次拿到过滤结果 + 页码 + 当前页条目（分段只算当前页这几条）
     const pageInfo = core.getPageItems(history, view)
     const visible = pageInfo.visible
@@ -97,7 +98,7 @@ Page({
       items: pageItems.map((x) => decorate(x.todo, x.indices)),
       total: history.length,
       completed,
-      incomplete: byPriority.length - completed,
+      incomplete: history.length - completed,
       visibleCount: visible.length,
       totalPages: pageInfo.totalPages,
       page: view.page,
@@ -117,6 +118,7 @@ Page({
     const history = store.loadHistory()
     const rec = history.find((t) => String(t.id) === String(id))
     if (!rec) return
+    undo.push()
     this.restoreItems([rec])
     store.saveHistory(history.filter((t) => String(t.id) !== String(id)))
     sound.play('add')
@@ -127,6 +129,7 @@ Page({
   purgeOne(e) {
     const id = e.currentTarget.dataset.id
     const history = store.loadHistory()
+    undo.push()
     store.saveHistory(history.filter((t) => String(t.id) !== String(id)))
     sound.play('delete')
     this.refresh()
@@ -162,6 +165,7 @@ Page({
     const history = store.loadHistory()
     const picked = history.filter(predicate)
     if (!picked.length) return
+    undo.push()
     this.restoreItems(picked)
     store.saveHistory(history.filter((t) => !predicate(t)))
     sound.play('add')
@@ -192,6 +196,7 @@ Page({
       confirmText: '永久删除',
       success: (res) => {
         if (!res.confirm) return
+        undo.push()
         store.saveHistory(history.filter((t) => !predicate(t)))
         sound.play('clearAll')
         this.refresh()

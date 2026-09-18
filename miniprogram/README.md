@@ -37,12 +37,14 @@ miniprogram/
 │   ├── synth.js    运行时音频合成（纯 JS，输出 WAV 字节流，音高可精确到每个琴键）
 │   ├── sound.js    音效播放：合成 → 写本地缓存文件 → wx.createInnerAudioContext 播放
 │   ├── pagedit.js  点页码输入跳页的交互（三个页面共用，规则与网页版一致）
+│   ├── undo.js     撤回 / 取消撤回（快照式：任务 + 回收站 + 自定义色）
 │   └── perf.js     进页面耗时打点（默认关闭）
 └── test/
     ├── core.test.js     纯逻辑单测：node test/core.test.js
     ├── synth.test.js    合成音单测（校验 WAV 结构、音高、抗混叠）：node test/synth.test.js
     ├── sound.test.js    播放链路测试（假 wx：缓存命名、实例管理、失败重试）：node test/sound.test.js
     ├── pagedit.test.js  页码跳页交互测试（假 wx：正常 / 越界 / 认不出 / 取消）：node test/pagedit.test.js
+    ├── undo.test.js     撤回测试（假 wx 存储：多处一起还原 / 重做 / 深度上限）：node test/undo.test.js
     ├── bench.js         性能基准：node test/bench.js
     └── validate.js      静态校验：node test/validate.js
 ```
@@ -59,6 +61,8 @@ miniprogram/
 | 排序：时间、优先级、名称升降序（中文按**拼音**） | ✅（用系统 `showActionSheet` 选择） |
 | 筛选：全部 / 已完成 / 未完成 + 优先级筛选器 | ✅ |
 | 分页 | ✅ 每页 5 条；**点「第 X / Y 页」可直接输入页码跳页**（越界收敛、认不出保持原页） |
+| 完成所有 / 取消所有 | ✅ 同一个按钮：还有未完成时是「✅ 完成所有 (N)」，全都完成了自动变成「↩️ 取消所有」 |
+| 撤回 / 取消撤回 | ✅ 排序与优先级筛选中间的 ↶ ↷ 两个箭头（实心主题色）；快照式，覆盖任务增删改勾选、清空类、回收站恢复与删除、自定义色增删 |
 | 8 个操作按钮（含「完成所有并清空」） | ✅ 筛选+完成所有在清单**上方**，清空类 4 个在清单**下方** |
 | 回收站：恢复 / 彻底删除 / 分页 | ✅ 9 个按钮：筛选 3 个在清单上方，恢复 3 个 + 清空 3 个在清单下方 |
 | 主题色：七色 + 自定义色 + 最近用色 | ✅ 自定义色**数量不限**，最近用色带分页（每页 5 个，与主清单一致） |
@@ -116,9 +120,10 @@ node test/core.test.js     # 纯逻辑（颜色解析 / 排序 / 筛选 / 搜索
 node test/synth.test.js    # 音频合成（WAV 结构、音高准确性、随频率设置移调、抗混叠）
 node test/sound.test.js    # 播放链路（缓存文件名带音高、每次新建实例、出错重试、防音爆、延迟清理）
 node test/pagedit.test.js  # 点页码跳页（正常跳页 / 越界收敛 / 认不出保持原页 / 取消）
+node test/undo.test.js     # 撤回（多处一起还原 / 重做失效 / 深度上限 / 自定义色）
 node test/validate.js      # 静态校验（JSON、文件齐全、require 路径、事件绑定、接线检查）
 node test/bench.js         # 性能基准
 ```
 
-脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前五个，**并留意通过数有没有变化**。
-当前通过数：core **111** / synth **42** / sound **47** / pagedit **32** / validate **257**。
+脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前六个，**并留意通过数有没有变化**。
+当前通过数：core **111** / synth **42** / sound **47** / pagedit **32** / undo **28** / validate **303**。

@@ -129,6 +129,11 @@ function rememberCustomColor(hex) {
   writeList(COLORS_KEY, list)
 }
 
+// 整体写回（撤回 / 重做用：把快照里的颜色表原样还原）
+function saveCustomColors(list) {
+  writeList(COLORS_KEY, Array.isArray(list) ? list : [])
+}
+
 function deleteCustomColor(hex) {
   const target = String(hex).toLowerCase()
   const remaining = loadCustomColors().filter((c) => c.toLowerCase() !== target)
@@ -258,6 +263,7 @@ module.exports = {
   saveTheme,
   loadCustomColors,
   rememberCustomColor,
+  saveCustomColors,
   deleteCustomColor,
   clearAllCustomColors,
   restoreCustomColor,

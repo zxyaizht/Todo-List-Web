@@ -186,6 +186,9 @@ page {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* 行内是「排序 + 撤回/取消撤回 + 优先级筛选」，窄屏放不下时整段换行，不要互相挤压 */
+  flex-wrap: wrap;
+  row-gap: 12rpx;
   margin: 20rpx 0 16rpx;
 }
 
@@ -197,6 +200,35 @@ page {
   background: var(--primary-soft);
   border: 2rpx solid rgba(var(--primary-rgb), 0.25);
   border-radius: 999rpx;
+}
+
+/* 列表空时工具栏只剩撤回/取消撤回两个箭头：居中，不要孤零零挂在左边 */
+.list-toolbar.solo {
+  justify-content: center;
+}
+
+/* 撤回 / 取消撤回：夹在排序与优先级筛选中间。
+ * 实心主题色 + 白字，与「添加」按钮同款（用户要求"较深色"）；不可用时整颗变淡。 */
+.undo-group {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.undo-btn {
+  width: 58rpx;
+  height: 58rpx;
+  line-height: 58rpx;
+  text-align: center;
+  font-size: 32rpx;
+  color: #ffffff;
+  background: var(--primary);
+  border-radius: var(--radius-sm);
+}
+
+.undo-btn.disabled {
+  opacity: 0.35;
 }
 
 .priority-filter {

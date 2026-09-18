@@ -278,6 +278,54 @@ check('主列表编辑页码后套用新页码并刷新', bodyOf(indexJs, 'editP
 check('回收站编辑页码后套用新页码并刷新', bodyOf(historyJs, 'editPage').includes('view.page = next') && bodyOf(historyJs, 'editPage').includes('refresh'))
 check('最近用色编辑页码后走统一跳页逻辑', bodyOf(settingsJs, 'editPage').includes('gotoColorPage'))
 
+/* 「完成所有」在全完成后变成「取消所有」 */
+check('按钮文案由 completeAllLabel 决定', /class="action-btn complete" bindtap="completeAll">\{\{completeAllLabel\}\}/.test(indexWxmlInput))
+check('文案里有两个分支', indexJs.includes('✅ 完成所有 (${incomplete})') && indexJs.includes("'↩️ 取消所有'"))
+check('按"有没有未完成"决定方向', bodyOf(indexJs, 'completeAll').includes('const target = todos.some((t) => !t.done)'))
+check('一次性把所有任务设成目标状态', bodyOf(indexJs, 'completeAll').includes('t.done = target'))
+check('已经是目标状态时不白记一步撤回', bodyOf(indexJs, 'completeAll').includes('return'))
+/* 计数必须是全量：否则筛了优先级会出现"按钮说取消所有、却把别的优先级也取消了" */
+check('主列表计数用全部任务（不随优先级筛选变化）', indexJs.includes('const completed = todos.filter((t) => t.done).length'))
+check('回收站计数也用全部记录', historyJs.includes('const completed = history.filter((t) => t.done).length'))
+
+/* 撤回 / 取消撤回 */
+const undoJs = read(path.join(ROOT, 'utils', 'undo.js'))
+check('undo.js 存在并导出四个入口', ['push', 'undo', 'redo', 'canUndo', 'canRedo'].every((k) => new RegExp('\\n  ' + k + ',').test(undoJs)))
+check('快照包含任务 / 回收站 / 自定义色', undoJs.includes('store.loadTodos()') && undoJs.includes('store.loadHistory()') && undoJs.includes('store.loadCustomColors()'))
+check('撤回栈有深度上限', /MAX_DEPTH = \d+/.test(undoJs) && undoJs.includes('undoStack.shift()'))
+check('新操作会清空重做栈', undoJs.includes('redoStack = []'))
+check('storage 提供自定义色整体写回（撤回要整表还原）', storageJs.includes('function saveCustomColors'))
+check('撤回写回时也还原自定义色', undoJs.includes('store.saveCustomColors'))
+check('主列表引入 undo', /require\('\.\.\/\.\.\/utils\/undo'\)/.test(indexJs))
+check('撤回后能立即反映到箭头状态', indexJs.includes('canUndo: undo.canUndo()') && indexJs.includes('canRedo: undo.canRedo()'))
+check('定义了 undoAction / redoAction', bodyOf(indexJs, 'undoAction').includes('undo.undo()') && bodyOf(indexJs, 'redoAction').includes('undo.redo()'))
+// 注意：afterTimeTravel 在定义之前就被 this.afterTimeTravel('add') 调用过，
+// bodyOf 取的是"第一次出现"后面的函数体，会取错 → 这里用带参数的函数头锚定
+check('撤回后切回「全部」并回到第 1 页', /afterTimeTravel\(soundKey\)\s*\{[\s\S]*?view\.filter = 'all'[\s\S]*?view\.page = 1/.test(indexJs))
+check('箭头在排序与优先级筛选之间', (() => {
+  const a = indexWxmlInput.indexOf('class="sort-btn"')
+  const b = indexWxmlInput.indexOf('class="undo-group"')
+  const c = indexWxmlInput.indexOf('class="priority-filter"')
+  return a !== -1 && b !== -1 && c !== -1 && a < b && b < c
+})())
+check('两个箭头都能点且有可访问名', /bindtap="undoAction"[^>]*aria-label="撤回"/.test(indexWxmlInput) && /bindtap="redoAction"[^>]*aria-label="取消撤回"/.test(indexWxmlInput))
+check('箭头是实心主题色（与「添加」按钮同色）', /\.undo-btn\s*\{[\s\S]*?background:\s*var\(--primary\)/.test(appWxssInput))
+check('不可用时置灰', /\.undo-btn\.disabled\s*\{[\s\S]*?opacity:/.test(appWxssInput))
+check('清空全部后撤回箭头仍然可见（工具栏不跟着消失）', /wx:if="\{\{total > 0 \|\| canUndo \|\| canRedo\}\}"/.test(indexWxmlInput))
+check('列表空时工具栏只剩箭头并居中', /class="list-toolbar \{\{total > 0 \? '' : 'solo'\}\}"/.test(indexWxmlInput) && /\.list-toolbar\.solo\s*\{[\s\S]*?justify-content:\s*center/.test(appWxssInput))
+check('工具行窄屏可换行（不挤压）', /\.list-toolbar\s*\{[\s\S]*?flex-wrap:\s*wrap/.test(appWxssInput))
+/* 每个"改数据"的操作都要先记一步 */
+;[
+  ['index', ipage => read(path.join(ROOT, 'pages', 'index', 'index.js')), ['addTodo', 'toggleTodo', 'deleteTodo', 'editTodo', 'completeAll', 'clearDone', 'clearIncomplete', 'clearAll', 'completeClear']],
+  ['history', () => historyJs, ['restoreOne', 'purgeOne', 'restoreByFilter', 'purgeByFilter']],
+  ['settings', () => settingsJs, ['applyCustom', 'removeColor', 'clearAllColors']],
+].forEach(([page, getSrc, fns]) => {
+  const src = getSrc()
+  fns.forEach((fn) => {
+    check('改动前先记撤回：' + page + '.' + fn, bodyOf(src, fn).includes('undo.push()'))
+  })
+})
+
 /* 选优先级时不该收起键盘 */
 check('输入框保持键盘（hold-keyboard）', /hold-keyboard="\{\{true\}\}"/.test(indexWxml))
 
