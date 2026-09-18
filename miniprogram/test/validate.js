@@ -113,14 +113,17 @@ appJson.pages.forEach((p) => {
   })
 })
 
-/* 5. 音效文件 */
+/* 5. 音效：改为运行时合成，不再打包音频文件 */
 const soundJs = read(path.join(ROOT, 'utils', 'sound.js'))
-const soundPaths = soundJs.match(/'\/assets\/sounds\/[^']+'/g) || []
-check('sound.js 里引用了音效文件（5 个事件音 + 3 个钢琴基准）', soundPaths.length === 8, '实际 ' + soundPaths.length + ' 个')
-soundPaths.forEach((s) => {
-  const rel = s.replace(/'/g, '').replace(/^\//, '')
-  check('音效文件存在：' + rel, exists(path.join(ROOT, rel)))
-})
+check('运行时合成模块 synth.js 存在', exists(path.join(ROOT, 'utils', 'synth.js')))
+check('sound.js 引用 synth', /require\('\.\/synth'\)/.test(soundJs))
+check('sound.js 不再引用打包音频', !/assets\/sounds/.test(soundJs))
+check('已删除旧的音频资源目录', !exists(path.join(ROOT, 'assets', 'sounds')))
+check('音高变化时会清理旧的合成文件', soundJs.includes('unlinkSync'))
+check('合成为 5 个事件音效 + 钢琴音', (() => {
+  const src = read(path.join(ROOT, 'utils', 'synth.js'))
+  return ['add', 'priority', 'delete', 'clearDone', 'clearAll'].every((k) => new RegExp('\\b' + k + ':').test(src)) && /function pianoWav/.test(src)
+})())
 
 /* 6. 一些小检查 */
 // wx:key="index" 是常见误用：它不是内置关键字，只有 item 真有 index 属性才对
@@ -174,20 +177,24 @@ check('滑杆绑定了 change 回调', /bindchange="onVolumeChange"/.test(settin
 check('定义了 onVolumeChange', bodyOf(settingsJs, 'onVolumeChange') !== '')
 check('定义了 onFreqChange', bodyOf(settingsJs, 'onFreqChange') !== '')
 const storageJs = read(path.join(ROOT, 'utils', 'storage.js'))
-check('音量/频率有默认值且做了范围校验', storageJs.includes('SOUND_DEFAULTS') && storageJs.includes('core.clampSemitone(stored.semitone)'))
+check('音量/频率有默认值且做了范围校验', storageJs.includes('SOUND_DEFAULTS') && storageJs.includes('core.clampKey(stored.pianoKey)'))
 const soundJsSrc = read(path.join(ROOT, 'utils', 'sound.js'))
 const coreJsSrc = read(path.join(ROOT, 'utils', 'core.js'))
 const appJsSrc = read(path.join(ROOT, 'app.js'))
 check('播放时应用音量', soundJsSrc.includes('ctx.volume'))
-check('播放时按频率换算播放倍率', soundJsSrc.includes('ctx.playbackRate'))
+check('播放走本地合成文件（边合成边播）', soundJsSrc.includes('writeFileSync') && soundJsSrc.includes('createInnerAudioContext'))
 check('音量滑杆为 0~100 并显示百分比', /max="100"/.test(settingsWxml) && /\{\{soundVolume\}\}%/.test(settingsWxml))
-check('频率滑杆为 0~36 半音并显示音符名', /max="36"/.test(settingsWxml) && /\{\{soundNote\}\}/.test(settingsWxml))
+check('频率滑杆为 0~87（钢琴 88 键全音域）', /max="87"/.test(settingsWxml) && /\{\{soundNote\}\}/.test(settingsWxml))
+check('音量数值可点击输入', /bindtap="editVolume"/.test(settingsWxml) && bodyOf(settingsJs, 'editVolume') !== '')
+check('频率数值可点击输入', /bindtap="editPitch"/.test(settingsWxml) && bodyOf(settingsJs, 'editPitch') !== '')
+check('自定义输入后同样试听', bodyOf(settingsJs, 'editVolume').includes('preview') && bodyOf(settingsJs, 'editPitch').includes('preview'))
+check('自定义输入能解析音名与 Hz', bodyOf(settingsJs, 'editPitch').includes('parsePitch'))
 check('音量以 0~1 存储（volume）', storageJs.includes('merged.volume = Math.min') && soundJsSrc.includes('settings.volume'))
-check('频率以半音存储（semitone）并兼容旧的 Hz', storageJs.includes('merged.semitone = core.freqToSemitone'))
-check('钢琴音高换算在 core 里', coreJsSrc.includes('function semitoneToFreq') && coreJsSrc.includes('function noteNameOf'))
-check('试听用钢琴基准音（3 个 wav）', /tone-c3\.wav/.test(soundJsSrc) && /tone-c4\.wav/.test(soundJsSrc) && /tone-c5\.wav/.test(soundJsSrc))
+check('频率以琴键序号存储（pianoKey）并兼容旧字段', storageJs.includes('merged.pianoKey = core.clampKey') && storageJs.includes('core.freqToKey(130.8128'))
+check('钢琴全音域换算在 core 里', coreJsSrc.includes('function keyToFreq') && coreJsSrc.includes('function keyNameOf') && coreJsSrc.includes('function parsePitch'))
 check('两个滑杆松手都会试听', bodyOf(settingsJs, 'onVolumeChange').includes('preview') && bodyOf(settingsJs, 'onFreqChange').includes('preview'))
 check('试听不受 5 个开关限制（preview 直接播）', /function preview\(/.test(soundJsSrc) && !bodyOf(soundJsSrc, 'preview').includes('settings['))
+check('事件音效随音高移调（按 REF_FREQ 缩放）', read(path.join(ROOT, 'utils', 'synth.js')).includes('freq / REF_FREQ'))
 check('启动时放宽音频可闻性（setInnerAudioOption）', appJsSrc.includes('setInnerAudioOption'))
 
 /* 选优先级时不该收起键盘 */

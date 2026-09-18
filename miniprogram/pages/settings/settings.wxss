@@ -211,6 +211,11 @@
   font-size: 22rpx;
 }
 
+/* 可点击的数值：给一点"能点"的暗示 */
+.slider-value.tappable {
+  border-bottom: 2rpx dashed var(--border);
+}
+
 .slider-tip {
   padding-top: 10rpx;
   font-size: 22rpx;

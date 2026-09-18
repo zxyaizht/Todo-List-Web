@@ -32,15 +32,19 @@ miniprogram/
 │   ├── history/    回收站：恢复、彻底删除、筛选、排序、优先级筛选、分页
 │   └── settings/   主题色（七色 + 自定义）、最近用色（复制 / 删除）、音效开关
 ├── utils/
-│   ├── core.js     纯逻辑：颜色解析、主题推导、排序（含中文拼音）、筛选、模糊搜索、分页
+│   ├── core.js     纯逻辑：颜色解析、主题推导、排序（含中文拼音）、筛选、模糊搜索、分页、钢琴音高换算
 │   ├── storage.js  本地存储（wx.setStorageSync）
-│   └── sound.js    音效播放（wx.createInnerAudioContext）
-├── assets/sounds/  5 个音效 wav（由 tools/gen-sounds.js 合成）
-├── tools/gen-sounds.js  重新生成音效：node tools/gen-sounds.js
+│   ├── synth.js    运行时音频合成（纯 JS，输出 WAV 字节流，音高可精确到每个琴键）
+│   └── sound.js    音效播放：合成 → 写本地缓存文件 → wx.createInnerAudioContext 播放
 └── test/
-    ├── core.test.js  纯逻辑单测：node test/core.test.js
-    └── validate.js   静态校验：node test/validate.js
+    ├── core.test.js   纯逻辑单测：node test/core.test.js
+    ├── synth.test.js  合成音单测（校验 WAV 结构与音高）：node test/synth.test.js
+    ├── bench.js       性能基准：node test/bench.js
+    └── validate.js    静态校验：node test/validate.js
 ```
+
+> 小程序**不打包任何音频资源**：音效在播放时现场合成，所以频率设置能覆盖钢琴 88 键全音域
+> （预渲染 wav + playbackRate 只能覆盖一个八度）。
 
 ## 功能对照（相对网页版）
 
@@ -54,7 +58,8 @@ miniprogram/
 | 回收站：恢复 / 彻底删除 / 分页 | ✅ |
 | 主题色：七色 + 自定义色 + 最近用色 | ✅ |
 | 色码复制 | ✅ 改用 `wx.setClipboardData`，比浏览器可靠 |
-| 音效 5 种 + 总开关 | ✅ 改为播放预生成 wav（小程序没有 Web Audio 现场合成） |
+| 音效 5 种 + 总开关 | ✅ 运行时合成（无音频文件）；音量 0~100%、频率覆盖钢琴 88 键全音域，点右侧数值可直接输入 |
+| 连续录入 | ✅ 加完任务光标留在输入框，可一直「打字 + 回车」；选优先级也不收起键盘 |
 | 数据存储 | `wx.setStorageSync`，**仅存本机** |
 
 ## 与网页版/桌面版的关系
@@ -68,13 +73,18 @@ miniprogram/
   ICU 可能不完整。代码里做了**探针检测**（比较「阿」与「张」），不可用时自动降级为 Unicode 序
   （英文排序仍然正确，中文会退化为按字符编码排）。`core.js` 导出的 `NAME_COMPARE.pinyin` 可以判断当前是否走了拼音。
 - 数据只在本机，换手机不同步；想要多设备同步需要加后端。
-- 我没有可视化运行环境，**界面效果必须在微信开发者工具里确认**；但纯逻辑部分有单测覆盖。
+- 我没有可视化运行环境，**界面效果必须在微信开发者工具里确认**（性能问题请以**真机预览**为准，模拟器会慢很多）；纯逻辑与音频合成都有单测覆盖。
+- 音效在首次播放某个音高时会现场合成并写一次缓存文件（几毫秒），之后同音高直接复用；音高一变会清掉旧文件。
 
 ## 测试
 
 ```bash
-node test/core.test.js   # 纯逻辑单测（颜色解析 / 排序 / 筛选 / 搜索 / 分页）
-node test/validate.js    # 静态校验（JSON、文件齐全、require 路径、事件绑定、音频文件）
+node test/core.test.js    # 纯逻辑（颜色解析 / 排序 / 筛选 / 搜索 / 分页 / 钢琴音高）
+node test/synth.test.js   # 音频合成（WAV 结构、音高准确性、随频率设置移调）
+node test/validate.js     # 静态校验（JSON、文件齐全、require 路径、事件绑定、接线检查）
+node test/bench.js        # 性能基准
 ```
+
+四个脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前三个，**并留意通过数有没有变化**。
 
 两个脚本都把报告写到 `%TEMP%` 下的 txt 文件里。

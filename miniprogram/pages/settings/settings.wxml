@@ -71,7 +71,7 @@
       </view>
     </view>
 
-    <!-- 音效参数：音量 + 频率（颜色跟随主题；松开滑杆会用当前音高试听） -->
+    <!-- 音效参数：音量 + 频率（颜色跟随主题；松手会用当前音高试听，点右侧数字可直接输入） -->
     <view class="slider-row">
       <text class="slider-label">音量</text>
       <slider
@@ -85,24 +85,24 @@
         backgroundColor="#e2e8f0"
         bindchange="onVolumeChange"
       />
-      <text class="slider-value">{{soundVolume}}%</text>
+      <text class="slider-value tappable" bindtap="editVolume">{{soundVolume}}%</text>
     </view>
     <view class="slider-row">
       <text class="slider-label">频率</text>
       <slider
         class="slider"
         min="0"
-        max="36"
+        max="87"
         step="1"
-        value="{{soundSemitone}}"
+        value="{{soundKey}}"
         activeColor="{{theme}}"
         block-color="{{theme}}"
         backgroundColor="#e2e8f0"
         bindchange="onFreqChange"
       />
-      <text class="slider-value wide">{{soundNote}} · {{soundFreqHz}}Hz</text>
+      <text class="slider-value wide tappable" bindtap="editPitch">{{soundNote}} · {{soundFreqHz}}Hz</text>
     </view>
-    <view class="slider-tip">频率滑杆共三个八度：最左是钢琴 C3，最右是 C6，每格一个半音。松开任一滑杆，都会按当前音高试听一个钢琴音。</view>
+    <view class="slider-tip">频率覆盖钢琴全音域（88 键：最左 A0、最右 C8，每格一个半音）。松开任一滑杆都会按当前音高试听一个钢琴音。点右侧数值可直接输入：音量填 0~100，频率可填音名（如 A#3）或 Hz（如 523）。</view>
   </view>
 
   <view class="footnote">数据保存在本机，不会上传服务器。</view>

@@ -163,36 +163,63 @@ function gainToDb(gain) {
   return Math.round(Math.sqrt(g) * MAX_VOLUME_DB)
 }
 
-/* ── 钢琴音高（频率滑杆用） ──
- * 滑杆按半音走：0 = C3、36 = C6（正好三个八度），每个刻度都是一个准的钢琴音，
- * 所以「最左边是 C3、最右边是 C6」是精确成立的。 */
-const PIANO_MIN_SEMITONE = 0
-const PIANO_MAX_SEMITONE = 36
-const PIANO_DEFAULT_SEMITONE = 24 // C5，与原来的默认频率 523Hz 一致
-const C3_FREQ = 130.8128
+/* ── 钢琴音域（频率滑杆用） ──
+ * 用「琴键序号」建模：0 = A0（27.5Hz）、87 = C8（4186Hz），正好是钢琴 88 键全音域，
+ * 每个刻度都是一个准的音；默认 51 = C5（523.25Hz，与音效基准音一致）。 */
+const PIANO_MIN_KEY = 0
+const PIANO_MAX_KEY = 87
+const PIANO_DEFAULT_KEY = 51 // C5
+const A0_FREQ = 27.5
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-function clampSemitone(n) {
+function clampKey(n) {
   const v = Math.round(Number(n))
-  if (!isFinite(v)) return PIANO_DEFAULT_SEMITONE
-  return Math.min(PIANO_MAX_SEMITONE, Math.max(PIANO_MIN_SEMITONE, v))
+  if (!isFinite(v)) return PIANO_DEFAULT_KEY
+  return Math.min(PIANO_MAX_KEY, Math.max(PIANO_MIN_KEY, v))
 }
 
-function semitoneToFreq(n) {
-  return C3_FREQ * Math.pow(2, clampSemitone(n) / 12)
+function keyToFreq(k) {
+  return A0_FREQ * Math.pow(2, clampKey(k) / 12)
 }
 
-// 由频率反推最近的半音（兼容旧数据里存的 Hz）
-function freqToSemitone(hz) {
+// 由频率反推最近的琴键（兼容旧数据里存的 Hz）
+function freqToKey(hz) {
   const f = Number(hz)
-  if (!isFinite(f) || f <= 0) return PIANO_DEFAULT_SEMITONE
-  return clampSemitone(12 * Math.log2(f / C3_FREQ))
+  if (!isFinite(f) || f <= 0) return PIANO_DEFAULT_KEY
+  return clampKey(12 * Math.log2(f / A0_FREQ))
 }
 
-// 0 -> C3，12 -> C4，24 -> C5，36 -> C6
-function noteNameOf(n) {
-  const s = clampSemitone(n)
-  return NOTE_NAMES[s % 12] + (3 + Math.floor(s / 12))
+// 0 -> A0，3 -> C1，12 -> A1，51 -> C5，87 -> C8
+function keyNameOf(k) {
+  const s = clampKey(k) + 9 // 换成「以 C0 为 0」的半音序号
+  return NOTE_NAMES[s % 12] + Math.floor(s / 12)
+}
+
+/* 输入解析：支持音名（C5 / A#3 / Bb4 / 带八度）或频率（523 / 523Hz）。
+ * 认不出返回 null，交给调用方提示。 */
+function parsePitch(raw) {
+  const s = String(raw == null ? '' : raw).trim()
+  if (!s) return null
+
+  const note = /^([A-Ga-g])\s*([#♯b♭]?)\s*(-?\d{1,2})$/.exec(s)
+  if (note) {
+    let semi = NOTE_NAMES.indexOf(note[1].toUpperCase())
+    if (semi === -1) return null
+    if (note[2] === '#' || note[2] === '♯') semi += 1
+    else if (note[2] === 'b' || note[2] === '♭') semi -= 1
+    const octave = parseInt(note[3], 10)
+    // 以 C0 为 0 的半音序号，再换算成 A0=0 的琴键序号
+    return clampKey(octave * 12 + semi - 9)
+  }
+
+  const num = /^(\d+(?:\.\d+)?)\s*(?:hz|赫兹)?$/i.exec(s)
+  if (num) {
+    const hz = parseFloat(num[1])
+    if (!isFinite(hz) || hz <= 0) return null
+    return freqToKey(hz)
+  }
+
+  return null
 }
 
 /* ── 日期显示 ── */
@@ -437,15 +464,16 @@ module.exports = {
   MAX_VOLUME_DB,
   dbToGain,
   gainToDb,
-  PIANO_MIN_SEMITONE,
-  PIANO_MAX_SEMITONE,
-  PIANO_DEFAULT_SEMITONE,
-  C3_FREQ,
+  PIANO_MIN_KEY,
+  PIANO_MAX_KEY,
+  PIANO_DEFAULT_KEY,
+  A0_FREQ,
   NOTE_NAMES,
-  clampSemitone,
-  semitoneToFreq,
-  freqToSemitone,
-  noteNameOf,
+  clampKey,
+  keyToFreq,
+  freqToKey,
+  keyNameOf,
+  parsePitch,
   formatCreatedAt,
   formatDeletedAt,
   RAINBOW_COLORS,

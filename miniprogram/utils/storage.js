@@ -193,8 +193,8 @@ const SOUND_TYPES = [
 
 // 音效全局参数：
 //   volume   0~1（滑杆显示百分比）
-//   semitone 钢琴半音档位，0=C3、36=C6（滑杆用它，播放时由 core.semitoneToFreq 换算成频率）
-const SOUND_DEFAULTS = { volume: 1, semitone: core.PIANO_DEFAULT_SEMITONE }
+//   pianoKey 钢琴琴键序号，0=A0、87=C8（滑杆用它，播放时由 core.keyToFreq 换算成频率）
+const SOUND_DEFAULTS = { volume: 1, pianoKey: core.PIANO_DEFAULT_KEY }
 
 function loadSoundSettings() {
   const merged = { ...SOUND_DEFAULTS }
@@ -210,14 +210,17 @@ function loadSoundSettings() {
     if (typeof stored.volume === 'number' && isFinite(stored.volume)) {
       merged.volume = Math.min(1, Math.max(0, stored.volume))
     } else if (typeof stored.volumeDb === 'number' && isFinite(stored.volumeDb)) {
-      // 兼容上一版按「分贝档位」(0~75) 存储的音量
+      // 兼容按「分贝档位」(0~75) 存过的那一版
       merged.volume = core.dbToGain(stored.volumeDb)
     }
-    if (typeof stored.semitone === 'number' && isFinite(stored.semitone)) {
-      merged.semitone = core.clampSemitone(stored.semitone)
+    if (typeof stored.pianoKey === 'number' && isFinite(stored.pianoKey)) {
+      merged.pianoKey = core.clampKey(stored.pianoKey)
+    } else if (typeof stored.semitone === 'number' && isFinite(stored.semitone)) {
+      // 兼容上一版：那时档位以 C3 为 0（0=C3、36=C6）
+      merged.pianoKey = core.freqToKey(130.8128 * Math.pow(2, stored.semitone / 12))
     } else if (typeof stored.frequency === 'number' && isFinite(stored.frequency)) {
       // 兼容更早版本直接存的 Hz
-      merged.semitone = core.freqToSemitone(stored.frequency)
+      merged.pianoKey = core.freqToKey(stored.frequency)
     }
     return merged
   } catch (e) {

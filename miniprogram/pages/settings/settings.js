@@ -14,9 +14,9 @@ Page({
     customColors: [],
     soundRows: [],
     allSoundOn: true,
-    // 音效全局参数：音量用百分比显示，频率按钢琴半音档位显示（0=C3、36=C6）
+    // 音效全局参数：音量用百分比显示；频率用钢琴琴键序号（0=A0、87=C8，全音域）
     soundVolume: 100,
-    soundSemitone: core.PIANO_DEFAULT_SEMITONE,
+    soundKey: core.PIANO_DEFAULT_KEY,
     soundNote: 'C5',
     soundFreqHz: 523,
   },
@@ -46,9 +46,9 @@ Page({
       })),
       allSoundOn: store.SOUND_TYPES.every((s) => !!soundSettings[s.key]),
       soundVolume: Math.round((soundSettings.volume == null ? 1 : soundSettings.volume) * 100),
-      soundSemitone: soundSettings.semitone,
-      soundNote: core.noteNameOf(soundSettings.semitone),
-      soundFreqHz: Math.round(core.semitoneToFreq(soundSettings.semitone)),
+      soundKey: soundSettings.pianoKey,
+      soundNote: core.keyNameOf(soundSettings.pianoKey),
+      soundFreqHz: Math.round(core.keyToFreq(soundSettings.pianoKey)),
     })
   },
 
@@ -158,19 +158,74 @@ Page({
     store.saveSoundSettings(settings)
     this.setData({ soundVolume: percent })
     // 音量改完立刻按当前音高试听，能直接听出大小变化
-    sound.preview(this.data.soundSemitone)
+    sound.preview(this.data.soundKey)
   },
 
   onFreqChange(e) {
-    const semitone = e.detail.value
+    const key = e.detail.value
     const settings = store.loadSoundSettings()
-    settings.semitone = semitone
+    settings.pianoKey = key
     store.saveSoundSettings(settings)
     this.setData({
-      soundSemitone: semitone,
-      soundNote: core.noteNameOf(semitone),
-      soundFreqHz: Math.round(core.semitoneToFreq(semitone)),
+      soundKey: key,
+      soundNote: core.keyNameOf(key),
+      soundFreqHz: Math.round(core.keyToFreq(key)),
     })
-    sound.preview(semitone)
+    sound.preview(key)
+  },
+
+  /* ── 点右侧数值自定义输入（与拖滑杆等效：设置成功后同样试听） ── */
+
+  editVolume() {
+    wx.showModal({
+      title: '音量（0 ~ 100）',
+      editable: true,
+      placeholderText: '输入 0 ~ 100 的数字',
+      content: String(this.data.soundVolume),
+      success: (res) => {
+        if (!res.confirm) return
+        const raw = String(res.content == null ? '' : res.content).trim()
+        const num = parseFloat(raw)
+        if (!isFinite(num)) {
+          wx.showToast({ title: '请输入数字', icon: 'none' })
+          return
+        }
+        const percent = Math.round(Math.min(100, Math.max(0, num)))
+        const settings = store.loadSoundSettings()
+        settings.volume = percent / 100
+        store.saveSoundSettings(settings)
+        this.setData({ soundVolume: percent })
+        if (percent !== Math.round(num)) {
+          wx.showToast({ title: '已收敛到 ' + percent + '%', icon: 'none' })
+        }
+        sound.preview(this.data.soundKey)
+      },
+    })
+  },
+
+  editPitch() {
+    wx.showModal({
+      title: '频率（音名或 Hz）',
+      editable: true,
+      placeholderText: '如 C5 / A#3 / 523',
+      content: this.data.soundNote,
+      success: (res) => {
+        if (!res.confirm) return
+        const key = core.parsePitch(res.content)
+        if (key == null) {
+          wx.showToast({ title: '认不出这个音高', icon: 'none' })
+          return
+        }
+        const settings = store.loadSoundSettings()
+        settings.pianoKey = key
+        store.saveSoundSettings(settings)
+        this.setData({
+          soundKey: key,
+          soundNote: core.keyNameOf(key),
+          soundFreqHz: Math.round(core.keyToFreq(key)),
+        })
+        sound.preview(key)
+      },
+    })
   },
 })
