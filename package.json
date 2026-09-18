@@ -1,7 +1,7 @@
 {
   "name": "todo-list-web",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "我的待办清单",
   "author": "zxyaizht",
   "type": "module",

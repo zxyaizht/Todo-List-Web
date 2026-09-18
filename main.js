@@ -173,27 +173,59 @@ function restoreCustomColor(hex) {
   localStorage.setItem(COLORS_KEY, JSON.stringify(list))
 }
 
-// 复制文本：优先用剪贴板 API，非安全上下文下回退到临时 textarea
-async function copyText(text) {
+// 传统回退：临时 textarea + execCommand（老浏览器 / 非安全上下文）
+function legacyCopyText(text) {
   try {
-    if (window.navigator && window.navigator.clipboard && window.navigator.clipboard.writeText) {
-      await window.navigator.clipboard.writeText(text)
-      return true
-    }
+    if (typeof document.execCommand !== 'function') return false
     const ta = document.createElement('textarea')
     ta.value = text
     ta.setAttribute('readonly', '')
     ta.style.position = 'fixed'
-    ta.style.top = '-1000px'
-    ta.style.opacity = '0'
+    ta.style.top = '0'
+    ta.style.left = '-9999px'
     document.body.appendChild(ta)
+    const selection = document.getSelection ? document.getSelection() : null
+    const prevRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
     ta.select()
-    const ok = typeof document.execCommand === 'function' ? document.execCommand('copy') : false
+    if (typeof ta.setSelectionRange === 'function') ta.setSelectionRange(0, ta.value.length)
+    const ok = document.execCommand('copy')
     document.body.removeChild(ta)
-    return ok
+    if (selection && prevRange) {
+      selection.removeAllRanges()
+      selection.addRange(prevRange)
+    }
+    return !!ok
   } catch {
     return false
   }
+}
+
+/* 复制文本，三层兜底（缺一层就往下走，不能直接判失败）：
+ *   1. 桌面版：Electron 主进程直接写系统剪贴板（最可靠，不受页面权限影响）
+ *   2. 浏览器剪贴板 API（需要安全上下文 + 用户手势；**被拒也要继续往下试**）
+ *   3. 传统 textarea + execCommand
+ * 历史 bug：旧实现里第 2 层一旦抛错就直接 return false，导致桌面版一直「复制失败」。 */
+async function copyText(text) {
+  const value = String(text == null ? '' : text)
+
+  if (window.todoDesktop && typeof window.todoDesktop.copyText === 'function') {
+    try {
+      if (await window.todoDesktop.copyText(value)) return true
+    } catch {
+      // 桌面桥不可用时继续走浏览器方案
+    }
+  }
+
+  if (window.navigator && window.navigator.clipboard && typeof window.navigator.clipboard.writeText === 'function') {
+    try {
+      await window.navigator.clipboard.writeText(value)
+      return true
+    } catch {
+      // 权限被拒 / 文档未聚焦时继续回退，而不是直接失败
+    }
+  }
+
+  return legacyCopyText(value)
 }
 
 /* ── Color parsing for custom input ──

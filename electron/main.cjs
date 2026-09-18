@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, ipcMain, clipboard } = require('electron')
 const http = require('node:http')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -75,6 +75,7 @@ async function createWindow() {
     autoHideMenuBar: true, // 隐藏菜单栏，看起来更像独立应用
     backgroundColor: '#f8fafc',
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -88,6 +89,12 @@ async function createWindow() {
 
   await win.loadURL(`http://127.0.0.1:${port}/`)
 }
+
+// 页面请求写剪贴板：由主进程直接写系统剪贴板，避免浏览器权限限制导致复制失败
+ipcMain.handle('clipboard:write', (_event, text) => {
+  clipboard.writeText(String(text == null ? '' : text))
+  return true
+})
 
 app.whenReady().then(createWindow).catch((err) => {
   console.error('启动失败：', err)
