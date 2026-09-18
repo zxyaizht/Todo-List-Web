@@ -261,6 +261,23 @@ check('「全部删除」按总数判断（不是当前页长度）', settingsJs
 check('新增颜色后跳到第 1 页（新颜色插在最前）', bodyOf(settingsJs, 'applyCustom').includes('this.customPage = 1'))
 check('标题显示颜色总数', /\{\{customCount\}\}/.test(settingsWxmlInput))
 
+/* 点页码 → 输入页码跳页（三个页面共用 utils/pagedit.js，规则与网页版 startPageEdit 一致） */
+const pageditJs = read(path.join(ROOT, 'utils', 'pagedit.js'))
+check('pagedit.js 导出 promptJumpPage', /function promptJumpPage/.test(pageditJs) && /promptJumpPage/.test(pageditJs.split('module.exports')[1] || ''))
+check('解析规则只有一份（pagedit 复用 core.parsePageInput）', pageditJs.includes("require('./core')") && pageditJs.includes('core.parsePageInput'))
+check('core 里定义了并导出 parsePageInput', coreJsSrc.includes('function parsePageInput') && coreJsSrc.includes('parsePageInput,'))
+check('三个页面的页码都能点击编辑', [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
+  .every((s) => /class="page-indicator tappable" bindtap="editPage"/.test(s)))
+check('可点页码的样式已定义（虚线 + 主题色）', /\.page-indicator\.tappable\s*\{[\s\S]*?dashed/.test(appWxssInput))
+;['index', 'history', 'settings'].forEach((p) => {
+  const src = read(path.join(ROOT, 'pages', p, p + '.js'))
+  check('页面引入 pagedit：' + p, /require\('\.\.\/\.\.\/utils\/pagedit'\)/.test(src))
+  check('页面实现 editPage 并调用 promptJumpPage：' + p, /editPage\s*\(\s*\)\s*\{[\s\S]*?promptJumpPage/.test(src))
+})
+check('主列表编辑页码后套用新页码并刷新', bodyOf(indexJs, 'editPage').includes('view.page = next') && bodyOf(indexJs, 'editPage').includes('refresh'))
+check('回收站编辑页码后套用新页码并刷新', bodyOf(historyJs, 'editPage').includes('view.page = next') && bodyOf(historyJs, 'editPage').includes('refresh'))
+check('最近用色编辑页码后走统一跳页逻辑', bodyOf(settingsJs, 'editPage').includes('gotoColorPage'))
+
 /* 选优先级时不该收起键盘 */
 check('输入框保持键盘（hold-keyboard）', /hold-keyboard="\{\{true\}\}"/.test(indexWxml))
 

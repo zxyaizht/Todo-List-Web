@@ -452,6 +452,21 @@ function clampPage(p, totalPages) {
   return Math.min(p, totalPages)
 }
 
+/* 解析「点页码后手动输入的页码」，行为与网页版 startPageEdit 完全一致：
+ *   · 取开头的整数（parseInt 语义："3页" → 3、"2.5" → 2）
+ *   · 认不出或小于 1（空、"abc"、"0"、"-3"）→ 返回 null，调用方保持原页不动
+ *   · 大于总页数 → 收敛到末页
+ * 返回 1 ~ totalPages 的整数，或 null。 */
+function parsePageInput(raw, totalPages) {
+  const s = String(raw == null ? '' : raw).trim()
+  const matched = /^[+-]?\d+/.exec(s)
+  if (!matched) return null
+  const n = parseInt(matched[0], 10)
+  if (!isFinite(n) || n < 1) return null
+  const total = Math.max(1, Math.floor(Number(totalPages)) || 1)
+  return Math.min(total, n)
+}
+
 module.exports = {
   hexToHsl,
   hslToHex,
@@ -501,4 +516,5 @@ module.exports = {
   PAGE_SIZE,
   getTotalPages,
   clampPage,
+  parsePageInput,
 }

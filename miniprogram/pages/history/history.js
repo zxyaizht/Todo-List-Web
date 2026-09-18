@@ -2,6 +2,7 @@ const core = require('../../utils/core')
 const store = require('../../utils/storage')
 const sound = require('../../utils/sound')
 const perf = require('../../utils/perf')
+const pagedit = require('../../utils/pagedit')
 
 const app = getApp()
 
@@ -267,5 +268,14 @@ Page({
     if (view.page >= this.data.totalPages) return
     view.page += 1
     this.refresh()
+  },
+
+  // 点页码 → 输入页码直接跳（越界收敛、认不出保持原页，规则见 utils/pagedit.js）
+  editPage() {
+    pagedit.promptJumpPage(view.page, this.data.totalPages, (next) => {
+      if (next === view.page) return
+      view.page = next
+      this.refresh()
+    })
   },
 })

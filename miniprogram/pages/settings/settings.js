@@ -2,6 +2,7 @@ const core = require('../../utils/core')
 const store = require('../../utils/storage')
 const sound = require('../../utils/sound')
 const perf = require('../../utils/perf')
+const pagedit = require('../../utils/pagedit')
 
 const app = getApp()
 
@@ -95,6 +96,13 @@ Page({
     if (next === this.customPage) return
     this.customPage = next
     this.refresh()
+  },
+
+  // 点页码 → 输入页码直接跳（规则与主列表 / 历史记录一致，见 utils/pagedit.js）
+  editPage() {
+    pagedit.promptJumpPage(this.data.customPage, this.data.customTotalPages, (next) => {
+      this.gotoColorPage(next)
+    })
   },
 
   /* ── 主题色 ── */

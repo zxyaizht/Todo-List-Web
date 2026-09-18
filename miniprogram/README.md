@@ -32,16 +32,19 @@ miniprogram/
 │   ├── history/    回收站：恢复、彻底删除、筛选、排序、优先级筛选、分页
 │   └── settings/   主题色（七色 + 自定义）、最近用色（复制 / 删除）、音效开关
 ├── utils/
-│   ├── core.js     纯逻辑：颜色解析、主题推导、排序（含中文拼音）、筛选、模糊搜索、分页、钢琴音高换算
+│   ├── core.js     纯逻辑：颜色解析、主题推导、排序（含中文拼音）、筛选、模糊搜索、分页、手动页码解析、钢琴音高换算
 │   ├── storage.js  本地存储（wx.setStorageSync）
 │   ├── synth.js    运行时音频合成（纯 JS，输出 WAV 字节流，音高可精确到每个琴键）
-│   └── sound.js    音效播放：合成 → 写本地缓存文件 → wx.createInnerAudioContext 播放
+│   ├── sound.js    音效播放：合成 → 写本地缓存文件 → wx.createInnerAudioContext 播放
+│   ├── pagedit.js  点页码输入跳页的交互（三个页面共用，规则与网页版一致）
+│   └── perf.js     进页面耗时打点（默认关闭）
 └── test/
-    ├── core.test.js   纯逻辑单测：node test/core.test.js
-    ├── synth.test.js  合成音单测（校验 WAV 结构、音高、抗混叠）：node test/synth.test.js
-    ├── sound.test.js  播放链路测试（假 wx：缓存命名、实例管理、失败重试）：node test/sound.test.js
-    ├── bench.js       性能基准：node test/bench.js
-    └── validate.js    静态校验：node test/validate.js
+    ├── core.test.js     纯逻辑单测：node test/core.test.js
+    ├── synth.test.js    合成音单测（校验 WAV 结构、音高、抗混叠）：node test/synth.test.js
+    ├── sound.test.js    播放链路测试（假 wx：缓存命名、实例管理、失败重试）：node test/sound.test.js
+    ├── pagedit.test.js  页码跳页交互测试（假 wx：正常 / 越界 / 认不出 / 取消）：node test/pagedit.test.js
+    ├── bench.js         性能基准：node test/bench.js
+    └── validate.js      静态校验：node test/validate.js
 ```
 
 > 小程序**不打包任何音频资源**：音效在播放时现场合成，所以频率设置能覆盖钢琴 88 键全音域
@@ -55,6 +58,7 @@ miniprogram/
 | 任务名右侧添加日期（今天 / 昨天 / 同年 / 跨年） | ✅ |
 | 排序：时间、优先级、名称升降序（中文按**拼音**） | ✅（用系统 `showActionSheet` 选择） |
 | 筛选：全部 / 已完成 / 未完成 + 优先级筛选器 | ✅ |
+| 分页 | ✅ 每页 5 条；**点「第 X / Y 页」可直接输入页码跳页**（越界收敛、认不出保持原页） |
 | 8 个操作按钮（含「完成所有并清空」） | ✅ 筛选+完成所有在清单**上方**，清空类 4 个在清单**下方** |
 | 回收站：恢复 / 彻底删除 / 分页 | ✅ 9 个按钮：筛选 3 个在清单上方，恢复 3 个 + 清空 3 个在清单下方 |
 | 主题色：七色 + 自定义色 + 最近用色 | ✅ 自定义色**数量不限**，最近用色带分页（每页 5 个，与主清单一致） |
@@ -108,12 +112,13 @@ miniprogram/
 ## 测试
 
 ```bash
-node test/core.test.js    # 纯逻辑（颜色解析 / 排序 / 筛选 / 搜索 / 分页 / 钢琴音高）
-node test/synth.test.js   # 音频合成（WAV 结构、音高准确性、随频率设置移调、抗混叠）
-node test/sound.test.js   # 播放链路（缓存文件名带音高、每次新建实例、出错重试、延迟清理）
-node test/validate.js     # 静态校验（JSON、文件齐全、require 路径、事件绑定、接线检查）
-node test/bench.js        # 性能基准
+node test/core.test.js     # 纯逻辑（颜色解析 / 排序 / 筛选 / 搜索 / 分页 / 手动页码解析 / 钢琴音高）
+node test/synth.test.js    # 音频合成（WAV 结构、音高准确性、随频率设置移调、抗混叠）
+node test/sound.test.js    # 播放链路（缓存文件名带音高、每次新建实例、出错重试、防音爆、延迟清理）
+node test/pagedit.test.js  # 点页码跳页（正常跳页 / 越界收敛 / 认不出保持原页 / 取消）
+node test/validate.js      # 静态校验（JSON、文件齐全、require 路径、事件绑定、接线检查）
+node test/bench.js         # 性能基准
 ```
 
-脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前四个，**并留意通过数有没有变化**。
-当前通过数：core **98** / synth **42** / sound **47** / validate **236**。
+脚本都把报告写到 `%TEMP%` 下的 txt 文件里。改动小程序后至少跑前五个，**并留意通过数有没有变化**。
+当前通过数：core **111** / synth **42** / sound **47** / pagedit **32** / validate **257**。

@@ -474,3 +474,12 @@ page {
   font-size: 25rpx;
   color: var(--text-muted);
 }
+
+/* 页码可点击：点一下输入页码直接跳页（三个页面通用）。
+ * 虚线 + 主题色 = "这里能点"的提示，与设置页可点数值同款。 */
+.page-indicator.tappable {
+  display: inline-block;
+  padding: 2rpx 10rpx;
+  color: var(--primary);
+  border-bottom: 2rpx dashed var(--border);
+}

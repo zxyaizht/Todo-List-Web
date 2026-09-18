@@ -74,7 +74,7 @@
 
   <view wx:if="{{visibleCount > 5}}" class="pagination">
     <view class="page-btn {{page <= 1 ? 'disabled' : ''}}" bindtap="prevPage">‹ 上一页</view>
-    <text class="page-indicator">第 {{page}} / {{totalPages}} 页</text>
+    <text class="page-indicator tappable" bindtap="editPage">第 {{page}} / {{totalPages}} 页</text>
     <view class="page-btn {{page >= totalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页 ›</view>
   </view>
 
