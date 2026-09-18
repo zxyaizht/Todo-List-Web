@@ -262,6 +262,23 @@ check('回收站批量清空走统一确认：history.clearAll', /purgeByFilter\
 check('回收站清空已完成走统一确认：history.clearDone', /purgeByFilter\(/.test(bodyOf(historyJs, 'clearDone')))
 check('回收站批量恢复不弹确认框：history.restoreAll', !bodyOf(historyJs, 'restoreAll').includes('showModal'))
 check('主列表有 8 个操作入口（清空/完成类函数齐全）', ['clearAll', 'completeClear', 'clearDone', 'clearIncomplete', 'completeAll'].every((k) => indexJs.includes(k + '(')))
+
+/* 回收站（历史记录页）操作行：用户要求 9 个按钮、三行各 3 个，
+   第二行顺序为「恢复全部 → 恢复已完成 → 恢复未完成」，并去掉「完成所有并清空」 */
+const historyRows = historyWxmlInput.split('<view class="action-row">').slice(1)
+const rowHandlers = (chunk) => (chunk.match(/<view class="action-btn[^>]*?bindtap="([a-zA-Z]+)"/g) || [])
+  .map((tag) => /bindtap="([a-zA-Z]+)"/.exec(tag)[1])
+const historyRowHandlers = historyRows.map(rowHandlers)
+check('回收站操作行是三行', historyRowHandlers.length, 3)
+check('回收站每行 3 个按钮（共 9 个）', historyRowHandlers.map((r) => r.length).join(','), '3,3,3')
+check('第一行仍是筛选任务的 3 个按钮（不动）', historyRowHandlers[0].join(','), 'setFilter,setFilter,setFilter')
+check('第二行顺序：恢复全部 → 恢复已完成 → 恢复未完成', historyRowHandlers[1].join(','), 'restoreAll,restoreDone,restoreIncomplete')
+check('第三行顺序：全部清空 → 清空已完成 → 清空未完成', historyRowHandlers[2].join(','), 'clearAll,clearDone,clearIncomplete')
+check('回收站不再有「完成所有并清空」按钮', !/completeClear/.test(historyWxmlInput))
+// 注释里会提到被删掉的函数名，先去掉行注释再断言（否则"注释提到"会被当成"代码还有"）
+const stripJsComments = (s) => String(s).replace(/\/\/[^\n]*/g, '')
+check('历史页不再有 completeClear 函数（去掉了死代码）', !stripJsComments(historyJs).includes('completeClear'))
+check('主列表的「完成所有并清空」不受影响', /bindtap="completeClear"/.test(indexWxmlInput) && indexJs.includes('completeClear('))
 check('排序用 showActionSheet（原生选择器）', indexJs.includes('showActionSheet'))
 check('复制用 wx.setClipboardData', read(path.join(ROOT, 'pages', 'settings', 'settings.js')).includes('setClipboardData'))
 check('存储用 wx.setStorageSync（不是 localStorage）', read(path.join(ROOT, 'utils', 'storage.js')).includes('wx.setStorageSync') && !read(path.join(ROOT, 'utils', 'storage.js')).includes('localStorage'))

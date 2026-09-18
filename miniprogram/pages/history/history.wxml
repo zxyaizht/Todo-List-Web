@@ -43,17 +43,18 @@
       <view class="action-btn {{filter === 'active' ? 'filter-active' : ''}}" data-filter="active" bindtap="setFilter">未完成 ({{incomplete}})</view>
     </view>
 
-    <!-- 第二行：恢复（无损，不用确认） -->
+    <!-- 第二行：恢复（无损，不用确认）；顺序按用户要求：恢复全部 → 恢复已完成 → 恢复未完成 -->
     <view class="action-row">
+      <view class="action-btn complete" bindtap="restoreAll">♻️ 恢复全部</view>
       <view class="action-btn complete {{completed === 0 ? 'disabled' : ''}}" bindtap="restoreDone">♻️ 恢复已完成</view>
       <view class="action-btn complete {{incomplete === 0 ? 'disabled' : ''}}" bindtap="restoreIncomplete">♻️ 恢复未完成</view>
-      <view class="action-btn complete" bindtap="restoreAll">♻️ 恢复全部</view>
     </view>
 
-    <!-- 第三行：清空（永久删除，需确认）；配色与主界面一致，跟随主题色 -->
+    <!-- 第三行：清空（永久删除，需确认）；配色与主界面一致，跟随主题色。
+         注意：这里没有「完成所有并清空」——回收站里本来就是永久删除，
+         再标记成已完成既没意义又和「全部清空」重复，已按用户要求去掉。 -->
     <view class="action-row">
       <view class="action-btn" bindtap="clearAll">⚡ 全部清空</view>
-      <view class="action-btn" bindtap="completeClear">✅ 完成所有并清空</view>
       <view class="action-btn {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成</view>
       <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成</view>
     </view>
