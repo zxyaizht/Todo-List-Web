@@ -199,10 +199,16 @@
 
 .slider-value {
   flex-shrink: 0;
-  width: 118rpx;
+  width: 96rpx;
   text-align: right;
   font-size: 24rpx;
   color: var(--text-light);
+}
+
+/* 频率那格要显示「C#5 · 554Hz」，给宽一点 */
+.slider-value.wide {
+  width: 186rpx;
+  font-size: 22rpx;
 }
 
 .slider-tip {

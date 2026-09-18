@@ -129,6 +129,37 @@ check('增益 0.25 → 38dB（取整）', core.gainToDb(0.25), 38)
 check('增益 0 → 0dB', core.gainToDb(0), 0)
 check('来回换算保持一致', core.gainToDb(core.dbToGain(50)), 50)
 
+log('--- 钢琴音高（频率滑杆） ---')
+check('C3 常量', Math.round(core.C3_FREQ * 100) / 100, 130.81)
+check('默认档位是 C5（24）', core.PIANO_DEFAULT_SEMITONE, 24)
+check('滑杆最左 = C3 / 130.81Hz', Math.round(core.semitoneToFreq(0) * 100) / 100, 130.81)
+check('中间 = C4 / 261.63Hz', Math.round(core.semitoneToFreq(12) * 100) / 100, 261.63)
+check('滑杆最右 = C6 / 1046.5Hz', Math.round(core.semitoneToFreq(36) * 100) / 100, 1046.5)
+check('音符名 0 → C3', core.noteNameOf(0), 'C3')
+check('音符名 12 → C4', core.noteNameOf(12), 'C4')
+check('音符名 24 → C5', core.noteNameOf(24), 'C5')
+check('音符名 36 → C6', core.noteNameOf(36), 'C6')
+check('音符名 13 → C#4', core.noteNameOf(13), 'C#4')
+check('音符名 11 → B3', core.noteNameOf(11), 'B3')
+check('越界收敛：-5 → C3', core.noteNameOf(-5), 'C3')
+check('越界收敛：99 → C6', core.noteNameOf(99), 'C6')
+check('非法档位回默认 C5', core.noteNameOf(NaN), 'C5')
+check('频率反推半音：523.25 → 24', core.freqToSemitone(523.25), 24)
+check('频率反推半音：130.8 → 0', core.freqToSemitone(130.8), 0)
+check('频率反推半音：非法值回默认', core.freqToSemitone(0), 24)
+
+// 试听实现：三个基准各隔一个八度，选最近基准后倍率必定落在平台允许的 0.5~2 内
+let maxRate = 0
+for (let s = 0; s <= 36; s++) {
+  const hz = core.semitoneToFreq(s)
+  let best = Infinity
+  ;[0, 12, 24].forEach((b) => {
+    best = Math.min(best, Math.abs(Math.log2(hz / core.semitoneToFreq(b))))
+  })
+  maxRate = Math.max(maxRate, Math.pow(2, best))
+}
+check('C3~C6 每个半音都能用 0.5~2 倍率覆盖', maxRate <= 2 && maxRate >= 0.5, true)
+
 log('--- 分页 ---')
 check('总页数（12 条 / 每页 5）', core.getTotalPages(12), 3)
 check('总页数（空列表也要 1 页）', core.getTotalPages(0), 1)

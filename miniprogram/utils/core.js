@@ -163,6 +163,38 @@ function gainToDb(gain) {
   return Math.round(Math.sqrt(g) * MAX_VOLUME_DB)
 }
 
+/* ── 钢琴音高（频率滑杆用） ──
+ * 滑杆按半音走：0 = C3、36 = C6（正好三个八度），每个刻度都是一个准的钢琴音，
+ * 所以「最左边是 C3、最右边是 C6」是精确成立的。 */
+const PIANO_MIN_SEMITONE = 0
+const PIANO_MAX_SEMITONE = 36
+const PIANO_DEFAULT_SEMITONE = 24 // C5，与原来的默认频率 523Hz 一致
+const C3_FREQ = 130.8128
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+function clampSemitone(n) {
+  const v = Math.round(Number(n))
+  if (!isFinite(v)) return PIANO_DEFAULT_SEMITONE
+  return Math.min(PIANO_MAX_SEMITONE, Math.max(PIANO_MIN_SEMITONE, v))
+}
+
+function semitoneToFreq(n) {
+  return C3_FREQ * Math.pow(2, clampSemitone(n) / 12)
+}
+
+// 由频率反推最近的半音（兼容旧数据里存的 Hz）
+function freqToSemitone(hz) {
+  const f = Number(hz)
+  if (!isFinite(f) || f <= 0) return PIANO_DEFAULT_SEMITONE
+  return clampSemitone(12 * Math.log2(f / C3_FREQ))
+}
+
+// 0 -> C3，12 -> C4，24 -> C5，36 -> C6
+function noteNameOf(n) {
+  const s = clampSemitone(n)
+  return NOTE_NAMES[s % 12] + (3 + Math.floor(s / 12))
+}
+
 /* ── 日期显示 ── */
 
 function pad2(n) {
@@ -405,6 +437,15 @@ module.exports = {
   MAX_VOLUME_DB,
   dbToGain,
   gainToDb,
+  PIANO_MIN_SEMITONE,
+  PIANO_MAX_SEMITONE,
+  PIANO_DEFAULT_SEMITONE,
+  C3_FREQ,
+  NOTE_NAMES,
+  clampSemitone,
+  semitoneToFreq,
+  freqToSemitone,
+  noteNameOf,
   formatCreatedAt,
   formatDeletedAt,
   RAINBOW_COLORS,

@@ -116,7 +116,7 @@ appJson.pages.forEach((p) => {
 /* 5. 音效文件 */
 const soundJs = read(path.join(ROOT, 'utils', 'sound.js'))
 const soundPaths = soundJs.match(/'\/assets\/sounds\/[^']+'/g) || []
-check('sound.js 里引用了音效文件', soundPaths.length === 5, '实际 ' + soundPaths.length + ' 个')
+check('sound.js 里引用了音效文件（5 个事件音 + 3 个钢琴基准）', soundPaths.length === 8, '实际 ' + soundPaths.length + ' 个')
 soundPaths.forEach((s) => {
   const rel = s.replace(/'/g, '').replace(/^\//, '')
   check('音效文件存在：' + rel, exists(path.join(ROOT, rel)))
@@ -174,15 +174,20 @@ check('滑杆绑定了 change 回调', /bindchange="onVolumeChange"/.test(settin
 check('定义了 onVolumeChange', bodyOf(settingsJs, 'onVolumeChange') !== '')
 check('定义了 onFreqChange', bodyOf(settingsJs, 'onFreqChange') !== '')
 const storageJs = read(path.join(ROOT, 'utils', 'storage.js'))
-check('音量/频率有默认值且做了范围校验', storageJs.includes('SOUND_DEFAULTS') && storageJs.includes('merged.frequency = Math.min'))
+check('音量/频率有默认值且做了范围校验', storageJs.includes('SOUND_DEFAULTS') && storageJs.includes('core.clampSemitone(stored.semitone)'))
 const soundJsSrc = read(path.join(ROOT, 'utils', 'sound.js'))
 const coreJsSrc = read(path.join(ROOT, 'utils', 'core.js'))
 const appJsSrc = read(path.join(ROOT, 'app.js'))
 check('播放时应用音量', soundJsSrc.includes('ctx.volume'))
 check('播放时按频率换算播放倍率', soundJsSrc.includes('ctx.playbackRate'))
-check('音量滑杆为 0~75 档并显示 dB', /max="75"/.test(settingsWxml) && /\{\{soundVolumeDb\}\} dB/.test(settingsWxml))
-check('音量以 dB 存储（volumeDb）', storageJs.includes('volumeDb') && soundJsSrc.includes('volumeDb'))
-check('dB→增益换算在 core 里', coreJsSrc.includes('function dbToGain') && coreJsSrc.includes('function gainToDb'))
+check('音量滑杆为 0~100 并显示百分比', /max="100"/.test(settingsWxml) && /\{\{soundVolume\}\}%/.test(settingsWxml))
+check('频率滑杆为 0~36 半音并显示音符名', /max="36"/.test(settingsWxml) && /\{\{soundNote\}\}/.test(settingsWxml))
+check('音量以 0~1 存储（volume）', storageJs.includes('merged.volume = Math.min') && soundJsSrc.includes('settings.volume'))
+check('频率以半音存储（semitone）并兼容旧的 Hz', storageJs.includes('merged.semitone = core.freqToSemitone'))
+check('钢琴音高换算在 core 里', coreJsSrc.includes('function semitoneToFreq') && coreJsSrc.includes('function noteNameOf'))
+check('试听用钢琴基准音（3 个 wav）', /tone-c3\.wav/.test(soundJsSrc) && /tone-c4\.wav/.test(soundJsSrc) && /tone-c5\.wav/.test(soundJsSrc))
+check('两个滑杆松手都会试听', bodyOf(settingsJs, 'onVolumeChange').includes('preview') && bodyOf(settingsJs, 'onFreqChange').includes('preview'))
+check('试听不受 5 个开关限制（preview 直接播）', /function preview\(/.test(soundJsSrc) && !bodyOf(soundJsSrc, 'preview').includes('settings['))
 check('启动时放宽音频可闻性（setInnerAudioOption）', appJsSrc.includes('setInnerAudioOption'))
 
 /* 选优先级时不该收起键盘 */

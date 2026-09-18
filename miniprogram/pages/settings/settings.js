@@ -14,9 +14,11 @@ Page({
     customColors: [],
     soundRows: [],
     allSoundOn: true,
-    // 音效全局参数（滑杆显示 dB 与 Hz，存的是 dB 与 Hz）
-    soundVolumeDb: 75,
-    soundFreq: 523,
+    // 音效全局参数：音量用百分比显示，频率按钢琴半音档位显示（0=C3、36=C6）
+    soundVolume: 100,
+    soundSemitone: core.PIANO_DEFAULT_SEMITONE,
+    soundNote: 'C5',
+    soundFreqHz: 523,
   },
 
   // 同回收站：数据在 onLoad 备好，第一次绘制即完整
@@ -43,8 +45,10 @@ Page({
         on: !!soundSettings[s.key],
       })),
       allSoundOn: store.SOUND_TYPES.every((s) => !!soundSettings[s.key]),
-      soundVolumeDb: Math.round(soundSettings.volumeDb == null ? core.MAX_VOLUME_DB : soundSettings.volumeDb),
-      soundFreq: Math.round(soundSettings.frequency || 523),
+      soundVolume: Math.round((soundSettings.volume == null ? 1 : soundSettings.volume) * 100),
+      soundSemitone: soundSettings.semitone,
+      soundNote: core.noteNameOf(soundSettings.semitone),
+      soundFreqHz: Math.round(core.semitoneToFreq(soundSettings.semitone)),
     })
   },
 
@@ -145,23 +149,28 @@ Page({
     this.refresh()
   },
 
-  /* ── 音效参数：音量 / 频率（滑杆松手即保存并试听） ── */
+  /* ── 音效参数：音量 / 频率（松手即保存，并用当前音高试听一个钢琴音） ── */
 
   onVolumeChange(e) {
-    const db = e.detail.value
+    const percent = e.detail.value
     const settings = store.loadSoundSettings()
-    settings.volumeDb = db
+    settings.volume = percent / 100
     store.saveSoundSettings(settings)
-    this.setData({ soundVolumeDb: db })
-    sound.play('priority')
+    this.setData({ soundVolume: percent })
+    // 音量改完立刻按当前音高试听，能直接听出大小变化
+    sound.preview(this.data.soundSemitone)
   },
 
   onFreqChange(e) {
-    const hz = e.detail.value
+    const semitone = e.detail.value
     const settings = store.loadSoundSettings()
-    settings.frequency = hz
+    settings.semitone = semitone
     store.saveSoundSettings(settings)
-    this.setData({ soundFreq: hz })
-    sound.play('priority')
+    this.setData({
+      soundSemitone: semitone,
+      soundNote: core.noteNameOf(semitone),
+      soundFreqHz: Math.round(core.semitoneToFreq(semitone)),
+    })
+    sound.preview(semitone)
   },
 })

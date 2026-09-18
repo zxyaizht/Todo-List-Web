@@ -71,38 +71,38 @@
       </view>
     </view>
 
-    <!-- 音效参数：音量 + 频率（颜色跟随主题） -->
+    <!-- 音效参数：音量 + 频率（颜色跟随主题；松开滑杆会用当前音高试听） -->
     <view class="slider-row">
       <text class="slider-label">音量</text>
       <slider
         class="slider"
         min="0"
-        max="75"
+        max="100"
         step="1"
-        value="{{soundVolumeDb}}"
+        value="{{soundVolume}}"
         activeColor="{{theme}}"
         block-color="{{theme}}"
         backgroundColor="#e2e8f0"
         bindchange="onVolumeChange"
       />
-      <text class="slider-value">{{soundVolumeDb}} dB</text>
+      <text class="slider-value">{{soundVolume}}%</text>
     </view>
     <view class="slider-row">
       <text class="slider-label">频率</text>
       <slider
         class="slider"
-        min="262"
-        max="1046"
-        step="2"
-        value="{{soundFreq}}"
+        min="0"
+        max="36"
+        step="1"
+        value="{{soundSemitone}}"
         activeColor="{{theme}}"
         block-color="{{theme}}"
         backgroundColor="#e2e8f0"
         bindchange="onFreqChange"
       />
-      <text class="slider-value">{{soundFreq}} Hz</text>
+      <text class="slider-value wide">{{soundNote}} · {{soundFreqHz}}Hz</text>
     </view>
-    <view class="slider-tip">音量用 0~75 的相对分贝刻度（75 为满档）；频率以「添加任务」的音高为基准整体变调。二者都受手机系统音量与机型影响，无法做到绝对声压级。</view>
+    <view class="slider-tip">频率滑杆共三个八度：最左是钢琴 C3，最右是 C6，每格一个半音。松开任一滑杆，都会按当前音高试听一个钢琴音。</view>
   </view>
 
   <view class="footnote">数据保存在本机，不会上传服务器。</view>
