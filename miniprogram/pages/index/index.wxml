@@ -190,12 +190,14 @@
         bindtouchmove="onItemTouchMove"
         bindtouchend="onItemTouchEnd"
       >
-        <!-- 任务组：左边一个 90° 右箭头，点箭头或组名进组里 -->
+        <!-- 任务组：左边仍然是勾选框（点它 = 完成/取消完成组内全部任务），
+             名字点开是改名，右边的箭头才是进组 -->
         <block wx:if="{{item.kind === 'group'}}">
-          <view class="group-arrow" data-id="{{item.id}}" bindtap="openGroup" aria-label="打开任务组">›</view>
-          <view class="item-text group-name" data-id="{{item.id}}" bindtap="openGroup">
+          <view class="check {{item.allDone ? 'checked' : ''}}" data-id="{{item.id}}" bindtap="toggleGroupAll">✓</view>
+          <view class="item-text group-name" data-id="{{item.id}}" bindtap="renameGroup">
             <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
           </view>
+          <view class="group-arrow" data-id="{{item.id}}" bindtap="openGroup" aria-label="打开任务组">›</view>
           <view class="group-count">{{item.count}} 项</view>
           <view class="item-op del" data-id="{{item.id}}" bindtap="removeGroup">✕</view>
         </block>

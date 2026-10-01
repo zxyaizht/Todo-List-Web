@@ -814,6 +814,8 @@ page {
   background: var(--primary-soft);
 }
 
+/* 进组的箭头：在组名右边、任务数左边；套一层内边距把点按区域放大，
+   负 margin 抵消掉，视觉位置不变 */
 .group-arrow {
   flex-shrink: 0;
   width: 44rpx;
@@ -823,6 +825,8 @@ page {
   font-size: 38rpx;
   font-weight: 600;
   color: var(--primary);
+  padding: 12rpx;
+  margin: -12rpx;
 }
 
 .group-name {

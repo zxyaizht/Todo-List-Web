@@ -244,6 +244,14 @@ const grpView = { search: '', filter: 'all', sort: 'default', priority: 'all', u
 const rowText = (r) => r.kind + ':' + (r.kind === 'group' ? r.name : r.todo.text)
 check('任务组排最前，组内任务不再单列', core.buildListRows([grp], grpTasks, grpView).map(rowText), ['group:任务组1', 'todo:B', 'todo:C'])
 check('组里几个任务要数出来', core.buildListRows([grp], grpTasks, grpView)[0].count, 1)
+// 组左侧勾选框的状态：组内都完成了才算勾上（空组不勾）
+const doneGrpTasks = [
+  { id: 1, text: 'A', done: true, priority: 'high', urgency: 'none', createdAt: now, groupId: 9001 },
+  { id: 2, text: 'B', done: false, priority: 'high', urgency: 'none', createdAt: now, groupId: 9001 },
+]
+check('组内没全完成 → allDone=false', core.buildListRows([grp], doneGrpTasks, grpView)[0].allDone, false)
+check('组内全完成 → allDone=true', core.buildListRows([grp], doneGrpTasks.map((t) => Object.assign({}, t, { done: true })), grpView)[0].allDone, true)
+check('空组不算完成', core.buildListRows([grp], [], grpView)[0].allDone, false)
 check('groupId 指向不存在的组 → 按未分组处理（任务绝不能消失）',
   core.buildListRows([grp], grpTasks, grpView).filter((r) => r.kind === 'todo').length, 2)
 check('搜索命中组名 → 只留那个组', core.buildListRows([grp], grpTasks, Object.assign({}, grpView, { search: '任务组1' })).map(rowText), ['group:任务组1'])

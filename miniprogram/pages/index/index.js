@@ -54,6 +54,8 @@ function decorateRow(row) {
       id: row.group.id,
       name: row.name,
       count: row.count,
+      // 组左侧勾选框的状态：组内都完成了就勾上（空组不勾）
+      allDone: !!row.allDone,
       rowClass: 'item-group',
       segments: core.highlightSegments(row.name, row.indices).map((s, i) => ({ v: s.v, hit: s.hit, i })),
     }
@@ -622,13 +624,57 @@ Page({
     wx.showToast({ title: `已合并为「${name}」`, icon: 'none' })
   },
 
-  /* ── 任务组：进组 / 解散 ── */
+  /* 任务组：进组 / 改名 / 一键完成组内全部 / 解散 ── */
 
   openGroup(e) {
     if (this.tapBlocked()) return
     const id = e.currentTarget.dataset.id
     if (id == null) return
     wx.navigateTo({ url: `/pages/group/group?id=${id}` })
+  },
+
+  /* 组名点开是改名（和"点任务名改任务名"一致）；要进组请点右边的箭头。
+   * 组和任务不一样：它没有自己的"完成"状态，所以这里只改名。 */
+  renameGroup(e) {
+    if (this.tapBlocked()) return
+    const id = e.currentTarget.dataset.id
+    const group = store.findGroup(id)
+    if (!group) return
+    wx.showModal({
+      title: '重命名任务组',
+      editable: true,
+      placeholderText: '任务组名称',
+      content: group.name,
+      success: (res) => {
+        if (!res.confirm) return
+        const name = String(res.content || '').trim()
+        if (!name || name === group.name) return
+        undo.push()
+        store.saveGroups(store.loadGroups().map((g) => (
+          String(g.id) === String(group.id) ? Object.assign({}, g, { name }) : g
+        )))
+        this.refresh()
+      },
+    })
+  },
+
+  /* 任务组左侧的勾选框：一键完成 / 取消完成组内全部任务。
+   * 组自己没有 done，勾上的含义是"组里都完成了"（由 core.buildListRows 算出来）。 */
+  toggleGroupAll(e) {
+    if (this.tapBlocked()) return
+    const id = e.currentTarget.dataset.id
+    const group = store.findGroup(id)
+    if (!group) return
+    const todos = store.loadTodos()
+    const mine = todos.filter((t) => String(t.groupId) === String(group.id))
+    if (!mine.length) return // 空组没有可完成的
+    const target = mine.some((t) => !t.done) // 有没完成的 → 全打勾；否则全取消
+    if (!mine.some((t) => t.done !== target)) return
+    undo.push()
+    mine.forEach((t) => { t.done = target })
+    store.saveTodos(todos)
+    sound.play('add')
+    this.refresh()
   },
 
   // 解散任务组：组内任务**一起进回收站**（用户选择），属于批量操作所以要二次确认

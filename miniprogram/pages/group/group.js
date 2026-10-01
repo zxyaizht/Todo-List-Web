@@ -143,6 +143,12 @@ Page({
 
   refresh() {
     if (this.groupId == null) return
+    // 组名可能刚在主列表里被改过：以存储为准，并同步导航栏标题
+    const group = store.findGroup(this.groupId)
+    if (group && group.name !== this.groupName) {
+      this.groupName = group.name
+      wx.setNavigationBarTitle({ title: group.name })
+    }
     // 只取本组的任务；但所有写操作都回到整份清单上（见文件头注释）
     const todos = store.loadGroupTodos(this.groupId)
     // 计数按**当前等级筛选范围**算（与主列表同一套规则，见 core.countByLevelScope）

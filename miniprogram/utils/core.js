@@ -562,6 +562,7 @@ function buildListRows(groups, tasks, view) {
   const list = groups || []
   const groupIds = {}
   const counts = {}
+  const doneCounts = {}
   list.forEach((g) => {
     groupIds[String(g.id)] = true
   })
@@ -569,6 +570,7 @@ function buildListRows(groups, tasks, view) {
     const key = String(t.groupId)
     if (t.groupId == null || !groupIds[key]) return
     counts[key] = (counts[key] || 0) + 1
+    if (t.done) doneCounts[key] = (doneCounts[key] || 0) + 1
   })
 
   const rows = []
@@ -581,7 +583,19 @@ function buildListRows(groups, tasks, view) {
       if (!matched.matched) return // 搜名字没命中就不显示这个组
       indices = matched.indices
     }
-    rows.push({ kind: 'group', group: g, name, count: counts[String(g.id)] || 0, indices })
+    const key = String(g.id)
+    const count = counts[key] || 0
+    const doneCount = doneCounts[key] || 0
+    rows.push({
+      kind: 'group',
+      group: g,
+      name,
+      count,
+      doneCount,
+      // 组左侧那个勾选框的状态：组是非空的、且组内都完成了 → 勾上
+      allDone: count > 0 && doneCount === count,
+      indices,
+    })
   })
 
   const ungrouped = tasks.filter((t) => t.groupId == null || !groupIds[String(t.groupId)])

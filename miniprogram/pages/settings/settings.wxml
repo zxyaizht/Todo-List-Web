@@ -1,8 +1,6 @@
 <view class="app" style="{{themeStyle}}">
-  <view class="header">
-    <view class="header-title">⚙️ 设置</view>
-    <view class="header-sub">主题色与音效</view>
-  </view>
+  <!-- 顶部标题栏（⚙️ 设置 / 主题色与音效）已按用户要求去掉；
+       页面名仍显示在导航栏标题里（settings.json 的 navigationBarTitleText = 「设置」）。 -->
 
   <!-- 主题色 -->
   <view class="section">

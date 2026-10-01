@@ -588,9 +588,27 @@ check('core 有默认组名与列表行合成',
   ['nextGroupName', 'buildListRows', 'getListPage'].every((fn) => coreJsSrc.includes('function ' + fn + '(')))
 
 // 主列表：任务组行
-check('任务组行有 90° 右箭头，点它进组', /class="group-arrow"[^>]*bindtap="openGroup"/.test(indexWxmlInput))
-check('任务组行显示组名与任务数',
-  /class="item-text group-name"[^>]*bindtap="openGroup"/.test(indexWxmlInput) && /\{\{item\.count\}\} 项/.test(indexWxmlInput))
+check('任务组行最左边是勾选框（点它完成/取消完成组内全部）',
+  /class="check \{\{item\.allDone \? 'checked' : ''\}\}" data-id="\{\{item\.id\}\}" bindtap="toggleGroupAll"/.test(indexWxmlInput))
+check('组勾选框的状态按"组内是否都完成"算', coreJsSrc.includes('allDone: count > 0 && doneCount === count') && indexJs.includes('allDone: !!row.allDone'))
+check('一键完成组内全部：按"有没有未完成"决定方向、只动本组、先记撤回',
+  /toggleGroupAll\(e\)[\s\S]{0,700}?const target = mine\.some\(\(t\) => !t\.done\)/.test(indexJs)
+  && /toggleGroupAll\(e\)[\s\S]{0,900}?undo\.push\(\)/.test(indexJs))
+check('点组名是改名（不是进组）', /class="item-text group-name"[^>]*bindtap="renameGroup"/.test(indexWxmlInput)
+  && /renameGroup\(e\)[\s\S]{0,900}?store\.saveGroups/.test(indexJs))
+check('箭头在组名右边、任务数左边，点它才进组', (() => {
+  const n = indexWxmlInput.indexOf('class="item-text group-name"')
+  const a = indexWxmlInput.indexOf('class="group-arrow"')
+  const c = indexWxmlInput.indexOf('class="group-count"')
+  const del = indexWxmlInput.indexOf('bindtap="removeGroup"')
+  return n !== -1 && a !== -1 && c !== -1 && del !== -1 && n < a && a < c && c < del
+})())
+check('任务组行显示任务数', /\{\{item\.count\}\} 项/.test(indexWxmlInput))
+check('设置页顶部标题栏也已移除', !/header-title/.test(settingsWxmlInput) && !/header-sub/.test(settingsWxmlInput) && !/class="header"/.test(settingsWxmlInput))
+check('进组的箭头点按区域也放大了', /\.group-arrow\s*\{[\s\S]*?padding:\s*12rpx;[\s\S]*?margin:\s*-12rpx;/.test(appWxssInput))
+// 这里用本地 read（groupJs 声明在文件更后面，直接引用会 TDZ —— 踩过）
+check('组内页面会在组名被改后同步标题',
+  /refresh\(\)\s*\{[\s\S]{0,600}?setNavigationBarTitle/.test(read(path.join(ROOT, 'pages', 'group', 'group.js'))))
 check('任务组行右侧有删除（解散）', /class="item-op del" data-id="\{\{item\.id\}\}" bindtap="removeGroup"/.test(indexWxmlInput))
 check('主列表用 core.getListPage 合成「组 + 任务」的行', indexJs.includes('core.getListPage(groups, todos, view)'))
 check('混排的 wx:key 带前缀（防组/任务 id 撞车）',
