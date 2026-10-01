@@ -198,19 +198,22 @@ check('事件音效随音高移调（按 REF_FREQ 缩放）', read(path.join(ROO
 check('启动时放宽音频可闻性（setInnerAudioOption）', appJsSrc.includes('setInnerAudioOption'))
 
 /* 输入组件统一用 textarea：微信官方已知问题 —— 部分安卓输入法在 <input> 里
- * 输入英文时，键盘上方的候选词条会"打一个字母闪一下"；textarea 没有这个问题 */
+ * 输入英文时，键盘上方的候选词条会"打一个字母闪一下"；textarea 没有这个问题。
+ * **唯一例外**：跳页弹窗那个输入框用 <input type="number"> —— 页码只可能是数字，
+ * 只有 input 的 type 能把键盘切成数字键盘（textarea 没有 type），
+ * 而纯数字键盘不涉及字母，上面那个闪烁问题不存在。 */
 const indexWxmlInput = read(path.join(ROOT, 'pages', 'index', 'index.wxml'))
 const historyWxmlInput = read(path.join(ROOT, 'pages', 'history', 'history.wxml'))
 const settingsWxmlInput = read(path.join(ROOT, 'pages', 'settings', 'settings.wxml'))
 const isTextarea = (src, cls) => new RegExp('<textarea[\\s\\S]*?class="' + cls + '"').test(src)
 // 注释里会提到 <input>，先去掉注释再判断有没有真的用 input
 const stripComments = (s) => String(s).replace(/<!--[\s\S]*?-->/g, '')
+const countInputs = (src) => (stripComments(src).match(/<input\b/g) || []).length
 check('任务名输入用 textarea（避开 input 的输入法闪烁）', isTextarea(indexWxmlInput, 'form-input'))
 check('任务名输入保持单行高度（auto-height）', /class="form-input"[\s\S]*?auto-height="\{\{true\}\}"/.test(indexWxmlInput))
 check('任务名输入仍是「完成」键提交', /class="form-input"[\s\S]*?confirm-type="done"/.test(indexWxmlInput))
-check('三个页面的输入框都换成 textarea 了', !/<input\b/.test(stripComments(indexWxmlInput))
-  && !/<input\b/.test(stripComments(historyWxmlInput))
-  && !/<input\b/.test(stripComments(settingsWxmlInput)))
+check('除跳页弹窗外全用 textarea（每页只有那一个 input）',
+  [indexWxmlInput, historyWxmlInput, settingsWxmlInput].every((s) => countInputs(s) === 1))
 check('主列表搜索框也是 textarea', isTextarea(indexWxmlInput, 'search-input'))
 check('历史记录搜索框也是 textarea', isTextarea(historyWxmlInput, 'search-input'))
 check('色值输入也是 textarea', isTextarea(settingsWxmlInput, 'custom-input'))
@@ -282,11 +285,11 @@ check('三个页面的页码都能点击编辑', [indexWxmlInput, historyWxmlInp
 check('可点页码的样式已定义（虚线 + 主题色）', /\.page-indicator\.tappable\s*\{[\s\S]*?dashed/.test(appWxssInput))
 check('三个页面都有跳页弹窗', [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
   .every((s) => /class="page-dialog"/.test(s) && /class="page-dialog-card"/.test(s)))
-// 只取弹窗那个 textarea 标签本身（[^>]* 保证不会跨到别的标签上）
+// 只取弹窗那个输入框标签本身（[^>]* 保证不会跨到别的标签上）
 const dialogInputs = [indexWxmlInput, historyWxmlInput, settingsWxmlInput]
-  .map((s) => (s.match(/<textarea[^>]*class="page-dialog-input"[^>]*>/) || [''])[0])
+  .map((s) => (s.match(/<input[^>]*class="page-dialog-input"[^>]*>/) || [''])[0])
 check('三个页面的弹窗都有输入框', dialogInputs.every((t) => t !== ''))
-check('弹窗输入框带 fixed（原生组件在 fixed 区域里要显式声明）', dialogInputs.every((t) => t.includes('fixed="{{true}}"')))
+check('弹窗输入框是数字键盘（用户不用再切换输入法）', dialogInputs.every((t) => t.includes('type="number"')))
 check('弹窗输入框打开就自动聚焦（少点一下，键盘立刻弹出来）',
   dialogInputs.every((t) => t.includes('auto-focus="{{true}}"') && t.includes('focus="{{true}}"') ))
 check('关掉平台的上推页面（固定蒙层本来就动不了，开着会和自己的位移重复）', dialogInputs.every((t) => t.includes('adjust-position="{{false}}"')))

@@ -262,13 +262,17 @@
   <view wx:if="{{pageDialog}}" class="page-dialog" style="padding-bottom: {{pageKeyHeight}}px">
     <view class="page-dialog-card">
       <view class="page-dialog-title">跳转到第几页</view>
-      <textarea
+      <!-- 这里用 input 而不是 textarea：页码只可能是数字，input 的 type="number"
+           能直接把键盘切成**数字键盘**（用户不用再自己切换输入法）。
+           textarea 没有 type，给不了这个能力；而当初统一用 textarea 是为了躲开
+           "安卓输入法在 input 里打英文时候选词条闪一下"，纯数字键盘不涉及字母，所以这里没这个顾虑。 -->
+      <input
         class="page-dialog-input"
+        type="number"
+        maxlength="6"
         value="{{pageInput}}"
         placeholder="输入 1 ~ {{pageTotal}}"
-        auto-height="{{true}}"
         disable-default-padding="{{true}}"
-        fixed="{{true}}"
         focus="{{true}}"
         auto-focus="{{true}}"
         adjust-position="{{false}}"

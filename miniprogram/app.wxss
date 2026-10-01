@@ -707,9 +707,13 @@ page {
   text-align: center;
 }
 
-/* 输入框**不聚焦**：用户点它才会弹键盘 */
+/* 输入框**不聚焦**：用户点它才会弹键盘。
+ * 这里用的是 <input type="number">（不是 textarea）：页码只可能是数字，
+ * 只有 input 的 type 能把键盘切成数字键盘，用户不用自己切输入法。
+ * 单行高度靠 height/min-height + line-height 撑（82 = 20 + 42 + 20） */
 .page-dialog-input {
   width: 100%;
+  height: 82rpx;
   min-height: 82rpx;
   margin-top: 24rpx;
   padding: 20rpx 24rpx;

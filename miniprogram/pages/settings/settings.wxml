@@ -130,13 +130,15 @@
   <view wx:if="{{pageDialog}}" class="page-dialog" style="padding-bottom: {{pageKeyHeight}}px">
     <view class="page-dialog-card">
       <view class="page-dialog-title">跳转到第几页</view>
-      <textarea
+      <!-- 用 input type="number" 才能把键盘切成数字键盘（textarea 没有 type）；
+           页码只可能是数字，所以"安卓输入法打英文时候选词条闪"那个顾虑在这里不存在。 -->
+      <input
         class="page-dialog-input"
+        type="number"
+        maxlength="6"
         value="{{pageInput}}"
         placeholder="输入 1 ~ {{pageTotal}}"
-        auto-height="{{true}}"
         disable-default-padding="{{true}}"
-        fixed="{{true}}"
         focus="{{true}}"
         auto-focus="{{true}}"
         adjust-position="{{false}}"

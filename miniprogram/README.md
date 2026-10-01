@@ -96,6 +96,9 @@ miniprogram/
 - **输入框统一用 `textarea` 而不是 `input`**：微信官方已知问题 —— 部分安卓输入法在 `<input>` 里输入
   英文时，键盘上方的候选词条会「打一个字母闪一下」；`textarea` 没有这个问题。配 `auto-height`
   让它平时保持单行高度（`auto-height` 下 `height` 不生效，样式用 `min-height` + `line-height` 控制）。
+  **唯一例外：跳页弹窗的页码框用 `<input type="number">`** —— 只能靠 `input` 的 `type` 把键盘切成
+  **数字键盘**（用户要求"点页码直接出数字键盘，不用自己切输入法"），而纯数字键盘不涉及字母、
+  上面那个闪烁问题不存在。全项目就只有这三个（每页一个），`validate.js` 有断言盯数量。
 - **导航栏（含刘海 / 状态栏）跟随主题要每个页面自己设一次**：`wx.setNavigationBarColor` 只作用于
   **当前页面**，而切换页面时导航栏会回落到 `app.json` 里的静态配色（默认蓝）。所以只在 `onLaunch`
   与改主题时设置是不够的 —— 从设置页改完主题返回主页，主页的导航栏会变回蓝色。
@@ -111,8 +114,9 @@ miniprogram/
   - 蒙层是 `position: fixed`，**不会**跟着平台"自动上推页面"动 → 输入框要写
     `adjust-position="{{false}}"`，改由 `bindkeyboardheightchange`（focus 事件里也带高度，同一个
     handler 兜底）把蒙层的 `padding-bottom` 设成键盘高度，并且给蒙层加 `transition` 让它平滑移动；
-  - 弹窗里的 `textarea` 在 fixed 区域里，必须显式写 `fixed="{{true}}"`（否则安卓上位置会算错）；
-  - 不要带 `confirm-hold` / `hold-keyboard`（确定后弹窗就销毁了，键盘要跟着收起来）。
+  - 弹窗里的输入框是 `<input type="number">`（打开就是**数字键盘**）；注意 `fixed="{{true}}"` 是
+    **textarea 专有属性**，换成 input 后不能带，也**不要**带 `confirm-hold` / `hold-keyboard`
+    （确定后弹窗就销毁了，键盘要跟着收起来）。
 
 ### 音效播放链路的四个坑（都踩过，都写了测试）
 
