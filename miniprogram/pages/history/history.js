@@ -52,6 +52,12 @@ Page({
     weightFilterLabels: core.WEIGHT_FILTER_LABELS,
     urgencyFilterLabels: core.URGENCY_FILTER_LABELS,
     sortLabel: '排序',
+    // 排序下拉：当前值 + 全部选项（8 条，含缓急两个方向）
+    sort: core.DEFAULT_SORT,
+    sortOrder: core.SORT_ORDER,
+    sortLabels: core.SORT_LABELS,
+    // 当前打开的是哪一个下拉（'' / 'sort' / 'weight' / 'urgency'）
+    openMenu: '',
     items: [],
     total: 0,
     completed: 0,
@@ -129,6 +135,7 @@ Page({
       priorityFilter: view.priority,
       urgencyFilter: view.urgency,
       sortLabel: core.SORT_SHORT[view.sort] || '排序',
+      sort: view.sort,
       hint,
       hintNoMatch,
     })
@@ -255,32 +262,42 @@ Page({
     this.refresh()
   },
 
-  openSort() {
-    wx.showActionSheet({
-      itemList: core.SORT_ORDER.map((k) => core.SORT_LABELS[k]),
-      success: (res) => {
-        view.sort = core.SORT_ORDER[res.tapIndex]
-        view.page = 1
-        this.refresh()
-      },
-      fail: () => {},
-    })
+  /* ── 工具栏三个下拉（排序 / 轻重 / 缓急），与主列表同一套 ── */
+
+  toggleMenu(e) {
+    const menu = e.currentTarget.dataset.menu
+    if (!menu) return
+    this.setData({ openMenu: this.data.openMenu === menu ? '' : menu })
   },
 
-  /* 两个维度各一行筛选（都是视图状态，不持久化；切换后回到第 1 页） */
-  setWeightFilter(e) {
-    const value = e.currentTarget.dataset.level
-    if (value === view.priority) return
-    view.priority = value
+  closeMenu() {
+    if (this.data.openMenu) this.setData({ openMenu: '' })
+  },
+
+  pickSort(e) {
+    const value = e.currentTarget.dataset.sort
+    this.setData({ openMenu: '' })
+    if (!value || value === view.sort) return
+    view.sort = value
     view.page = 1
-    sound.play('priority')
     this.refresh()
   },
 
-  setUrgencyFilter(e) {
-    const value = e.currentTarget.dataset.level
-    if (value === view.urgency) return
-    view.urgency = value
+  // 两个等级筛选共用一个 handler，用 data-menu 区分改的是哪一个
+  pickLevelFilter(e) {
+    const menu = e.currentTarget.dataset.menu
+    const level = e.currentTarget.dataset.level
+    this.setData({ openMenu: '' })
+    if (!menu || !level) return
+    if (menu === 'weight') {
+      if (level === view.priority) return
+      view.priority = level
+    } else if (menu === 'urgency') {
+      if (level === view.urgency) return
+      view.urgency = level
+    } else {
+      return
+    }
     view.page = 1
     sound.play('priority')
     this.refresh()

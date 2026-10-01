@@ -27,10 +27,11 @@
   <view class="priority-row">
     <view class="priority-row-left">
       <view class="settings-gear" bindtap="goSettings" aria-label="设置">⚙️</view>
-      <view class="level-pick" bindtap="cycleWeight" hover-class="badge-hit-hover" aria-label="轻重">
+      <!-- 按下不做"变浅再变深"的过渡（用户要求）：换档时图标颜色直接切换 -->
+      <view class="level-pick" bindtap="cycleWeight" aria-label="轻重">
         <view class="badge priority-{{priority}}">{{weightLabel}}</view>
       </view>
-      <view class="level-pick" bindtap="cycleUrgency" hover-class="badge-hit-hover" aria-label="缓急">
+      <view class="level-pick" bindtap="cycleUrgency" aria-label="缓急">
         <view class="urgency-icon urgency-{{urgency}}"></view>
       </view>
     </view>
@@ -53,43 +54,112 @@
   </view>
   <view wx:if="{{hint}}" class="search-hint {{hintNoMatch ? 'no-match' : ''}}">{{hint}}</view>
 
-  <!-- 工具栏：第一行「排序 + 撤回/取消撤回」，下面两行是「轻重」「缓急」两个维度的筛选。
+  <!-- 工具栏：排序 / 轻重 / 缓急 三个"路径筛选式"下拉按钮同一行，撤回箭头贴在右侧。
+       点按钮展开一张卡片列表（当前项打勾、箭头转 180°），点别处收起来。
        任务被清空后排序/筛选没意义了，但**撤回箭头必须留着** ——
        「清空全部」之后正是最需要撤回的时候（列表空了，如果连箭头一起消失就等于没救）。 -->
   <block wx:if="{{total > 0 || canUndo || canRedo}}">
     <view class="list-toolbar {{total > 0 ? '' : 'solo'}}">
       <view class="toolbar-top">
-        <view wx:if="{{total > 0}}" class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
+        <view class="toolbar-menus">
+          <!-- 排序：原来是 wx.showActionSheet，但它的 itemList 最多 6 项，
+               加上「缓急」的两个选项就超了，所以改成同一套自绘下拉 -->
+          <view wx:if="{{total > 0}}" class="menu-wrap">
+            <view
+              class="menu-btn {{sort !== 'default' ? 'on' : ''}} {{openMenu === 'sort' ? 'open' : ''}}"
+              bindtap="toggleMenu"
+              data-menu="sort"
+              aria-label="排序"
+            >
+              <text class="menu-btn-label">⇅ {{sortLabel}}</text>
+              <text class="menu-caret">▾</text>
+            </view>
+            <view wx:if="{{openMenu === 'sort'}}" class="menu-pop">
+              <view
+                wx:for="{{sortOrder}}"
+                wx:key="*this"
+                class="menu-item {{sort === item ? 'picked' : ''}}"
+                data-menu="sort"
+                data-sort="{{item}}"
+                bindtap="pickSort"
+                hover-class="menu-item-hover"
+              >
+                <text class="menu-item-text">{{sortLabels[item]}}</text>
+                <text class="menu-check">{{sort === item ? '✓' : ''}}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 轻重筛选（全部 / 无 / 轻 / 中 / 重）：圆点显示当前档位的颜色 -->
+          <view wx:if="{{total > 0}}" class="menu-wrap">
+            <view
+              class="menu-btn {{priorityFilter !== 'all' ? 'on' : ''}} {{openMenu === 'weight' ? 'open' : ''}}"
+              bindtap="toggleMenu"
+              data-menu="weight"
+              aria-label="轻重筛选"
+            >
+              <view class="menu-dot priority-{{priorityFilter}}"></view>
+              <text class="menu-btn-label">轻重</text>
+              <text class="menu-caret">▾</text>
+            </view>
+            <view wx:if="{{openMenu === 'weight'}}" class="menu-pop">
+              <view
+                wx:for="{{levelFilterOrder}}"
+                wx:key="*this"
+                class="menu-item {{priorityFilter === item ? 'picked' : ''}}"
+                data-menu="weight"
+                data-level="{{item}}"
+                bindtap="pickLevelFilter"
+                hover-class="menu-item-hover"
+              >
+                <view class="menu-dot priority-{{item}}"></view>
+                <text class="menu-item-text">{{weightFilterLabels[item]}}</text>
+                <text class="menu-check">{{priorityFilter === item ? '✓' : ''}}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 缓急筛选（全部 / 无 / 缓 / 中 / 急） -->
+          <view wx:if="{{total > 0}}" class="menu-wrap">
+            <view
+              class="menu-btn {{urgencyFilter !== 'all' ? 'on' : ''}} {{openMenu === 'urgency' ? 'open' : ''}}"
+              bindtap="toggleMenu"
+              data-menu="urgency"
+              aria-label="缓急筛选"
+            >
+              <view class="menu-dot priority-{{urgencyFilter}}"></view>
+              <text class="menu-btn-label">缓急</text>
+              <text class="menu-caret">▾</text>
+            </view>
+            <view wx:if="{{openMenu === 'urgency'}}" class="menu-pop">
+              <view
+                wx:for="{{levelFilterOrder}}"
+                wx:key="*this"
+                class="menu-item {{urgencyFilter === item ? 'picked' : ''}}"
+                data-menu="urgency"
+                data-level="{{item}}"
+                bindtap="pickLevelFilter"
+                hover-class="menu-item-hover"
+              >
+                <view class="menu-dot priority-{{item}}"></view>
+                <text class="menu-item-text">{{urgencyFilterLabels[item]}}</text>
+                <text class="menu-check">{{urgencyFilter === item ? '✓' : ''}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
         <!-- 撤回 / 取消撤回：实心主题色，与「添加」按钮同色 -->
         <view class="undo-group">
           <view class="undo-btn {{canUndo ? '' : 'disabled'}}" bindtap="undoAction" aria-label="撤回">↶</view>
           <view class="undo-btn {{canRedo ? '' : 'disabled'}}" bindtap="redoAction" aria-label="取消撤回">↷</view>
         </view>
       </view>
-      <!-- 轻重筛选（全部 / 无 / 轻 / 中 / 重） -->
-      <view wx:if="{{total > 0}}" class="priority-filter">
-        <text class="priority-filter-title">轻重</text>
-        <view
-          wx:for="{{levelFilterOrder}}"
-          wx:key="*this"
-          class="priority-filter-option priority-{{item}} {{priorityFilter === item ? 'active' : ''}}"
-          data-level="{{item}}"
-          bindtap="setWeightFilter"
-        >{{weightFilterLabels[item]}}</view>
-      </view>
-      <!-- 缓急筛选（全部 / 无 / 缓 / 中 / 急） -->
-      <view wx:if="{{total > 0}}" class="priority-filter">
-        <text class="priority-filter-title">缓急</text>
-        <view
-          wx:for="{{levelFilterOrder}}"
-          wx:key="*this"
-          class="priority-filter-option priority-{{item}} {{urgencyFilter === item ? 'active' : ''}}"
-          data-level="{{item}}"
-          bindtap="setUrgencyFilter"
-        >{{urgencyFilterLabels[item]}}</view>
-      </view>
     </view>
   </block>
+
+  <!-- 下拉菜单的透明蒙层：点别处收起 -->
+  <view wx:if="{{openMenu}}" class="menu-mask" catchtap="closeMenu"></view>
 
   <block wx:if="{{total > 0}}">
     <!-- 操作行（第一行）：筛选 + 完成所有/取消所有（清空类那 4 个挪到了清单下方） -->
@@ -117,10 +187,10 @@
              一是两个等级成组好认，二是离左边的完成按钮远一点，点完成时不会误触到它。
              各自套一层只为把点按区域放大（44rpx / 34rpx 都太小），
              负 margin 把多出来的内边距抵消掉，视觉位置不变。两个都点开同一个改等级弹窗。 -->
-        <view class="badge-hit" data-id="{{item.id}}" bindtap="openLevelDialog" hover-class="badge-hit-hover" aria-label="轻重">
+        <view class="badge-hit" data-id="{{item.id}}" bindtap="openLevelDialog" aria-label="轻重">
           <view class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
         </view>
-        <view class="urgency-hit" data-id="{{item.id}}" bindtap="openLevelDialog" hover-class="badge-hit-hover" aria-label="缓急">
+        <view class="urgency-hit" data-id="{{item.id}}" bindtap="openLevelDialog" aria-label="缓急">
           <view class="urgency-icon urgency-{{item.urgency}}"></view>
         </view>
         <view wx:if="{{item.dateText}}" class="item-date">{{item.dateText}}</view>

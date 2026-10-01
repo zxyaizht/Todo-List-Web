@@ -342,7 +342,9 @@ check('回收站里等级位置与主列表一致（都在名称右边，圆在�
 })())
 check('点按区域放大到 68rpx 且视觉不位移', /\.badge-hit\s*\{[\s\S]*?padding:\s*12rpx;[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
 check('沙漏的点按区域也放大了', /\.urgency-hit\s*\{[\s\S]*?padding:\s*12rpx;[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
-check('按下去有反馈', /hover-class="badge-hit-hover"/.test(indexWxmlInput) && /\.badge-hit-hover\s*\{/.test(indexWxssBadge))
+// 等级相关按钮不做"按下变淡"的反馈（用户要求：换档时图标颜色直接切）
+check('等级按钮不做按下变淡', !/hover-class="badge-hit-hover"/.test(indexWxmlInput) && !/\.badge-hit-hover\s*\{/.test(indexWxssBadge))
+check('下拉菜单项用底色做反馈（不涉及图标颜色）', /hover-class="menu-item-hover"/.test(indexWxmlInput) && /\.menu-item-hover\s*\{[\s\S]*?background:/.test(appWxssInput))
 // 弹窗：一个弹窗两行（轻重 / 缓急），沿用 .priority-option 胶囊
 check('弹窗是两行（轻重 / 缓急）', /\{\{levelDialog\}\}[\s\S]*?level-dialog-row[\s\S]*?>轻重<[\s\S]*?level-dialog-row[\s\S]*?>缓急</.test(indexWxmlInput))
 check('弹窗复用「新建任务」那套胶囊', /class="priority-option priority-\{\{item\}\} \{\{levelPick\.priority === item \? 'selected' : ''\}\}"/.test(indexWxmlInput)
@@ -368,11 +370,34 @@ check('点一下切一级：无 → 轻 → 中 → 重', /cycleWeight\(\)[\s\S]
 check('切完会记住这次选择（跨启动保留）', /cycleWeight\(\)[\s\S]{0,240}?store\.savePriority/.test(indexJs) && /cycleUrgency\(\)[\s\S]{0,240}?store\.saveUrgency/.test(indexJs))
 check('两个按钮也放大了点按区域', /\.level-pick\s*\{[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
 // 工具栏：两个维度各一行筛选
-check('工具栏改成两行筛选（轻重 / 缓急）', (indexWxmlInput.match(/wx:for="\{\{levelFilterOrder\}\}"/g) || []).length === 2
-  && /bindtap="setWeightFilter"/.test(indexWxmlInput) && /bindtap="setUrgencyFilter"/.test(indexWxmlInput))
-check('两行筛选各自有自己的状态', /priorityFilter === item/.test(indexWxmlInput) && /urgencyFilter === item/.test(indexWxmlInput)
+// 工具栏：排序 / 轻重 / 缓急 三个"路径筛选式"下拉，同一行；点开是卡片列表 + 箭头旋转
+check('工具栏是三个下拉同一行（排序 / 轻重 / 缓急）', (indexWxmlInput.match(/class="menu-wrap"/g) || []).length === 3
+  && /bindtap="toggleMenu"[\s\S]{0,200}?data-menu="sort"/.test(indexWxmlInput)
+  && /data-menu="weight"/.test(indexWxmlInput) && /data-menu="urgency"/.test(indexWxmlInput))
+check('三个下拉在同一行容器里', /class="toolbar-menus"/.test(indexWxmlInput) && /\.toolbar-menus\s*\{[\s\S]*?display:\s*flex/.test(appWxssInput))
+check('下拉列出来的是选项列表（带颜色圆点与当前项打勾）', /class="menu-pop"/.test(indexWxmlInput)
+  && /class="menu-dot priority-\{\{item\}\}"/.test(indexWxmlInput) && /class="menu-check"/.test(indexWxmlInput))
+check('箭头有旋转动画', /\.menu-caret\s*\{[\s\S]*?transition:\s*transform/.test(appWxssInput)
+  && /\.menu-btn\.open \.menu-caret\s*\{[\s\S]*?rotate\(180deg\)/.test(appWxssInput))
+check('点别处能收起（透明蒙层）', /class="menu-mask" catchtap="closeMenu"/.test(indexWxmlInput) && /class="menu-mask" catchtap="closeMenu"/.test(historyWxmlInput))
+check('蒙层在下、下拉卡片在上、按钮还能点（z-index 关系）', /\.menu-mask\s*\{[\s\S]*?z-index:\s*90/.test(appWxssInput)
+  && /\.menu-pop\s*\{[\s\S]*?z-index:\s*91/.test(appWxssInput)
+  && /\.menu-btn\s*\{[\s\S]*?z-index:\s*92/.test(appWxssInput))
+// 用 [^}]* 把匹配限制在这条规则内（[\\s\\S]*? 会一路吃到后面的规则里去，第一次就误判了）
+check('menu-wrap 不能设 z-index（否则下拉会被蒙层盖住）', !/\.menu-wrap\s*\{[^}]*z-index/.test(appWxssInput))
+check('两个等级筛选共用一个 handler，用 data-menu 区分', /pickLevelFilter\(e\)[\s\S]{0,300}?dataset\.menu/.test(indexJs)
+  && /pickLevelFilter\(e\)[\s\S]{0,300}?dataset\.menu/.test(historyJs))
+check('筛选切换后回到第 1 页', /pickLevelFilter\(e\)[\s\S]{0,700}?view\.page = 1/.test(indexJs) && /pickLevelFilter\(e\)[\s\S]{0,700}?view\.page = 1/.test(historyJs))
+// 只截取 SORT_ORDER 数组本身来数（别在整份源码里数，SORT_LABELS/SORT_SHORT 里也有同样的 key）
+const sortOrderBody = (/const SORT_ORDER = \[([\s\S]*?)\]/.exec(coreJsSrc) || ['', ''])[1]
+// 注释里正解释"为什么不用 showActionSheet"，所以要先剥掉注释再断言
+const stripBothComments = (s) => String(s).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+check('排序也走自绘下拉（showActionSheet 最多 6 项，不够 8 个选项用）',
+  !stripBothComments(indexJs).includes('showActionSheet') && !stripBothComments(historyJs).includes('showActionSheet'))
+check('排序清单 8 项且含缓急两向', (sortOrderBody.match(/'/g) || []).length / 2 === 8
+  && sortOrderBody.includes("'urgency-desc'") && sortOrderBody.includes("'urgency-asc'"))
+check('两个筛选各自有自己的状态', /priorityFilter === item/.test(indexWxmlInput) && /urgencyFilter === item/.test(indexWxmlInput)
   && /priorityFilter:\s*view\.priority/.test(indexJs) && /urgencyFilter:\s*view\.urgency/.test(indexJs))
-check('筛选切换后回到第 1 页', /setWeightFilter\(e\)[\s\S]{0,260}?view\.page = 1/.test(indexJs) && /setUrgencyFilter\(e\)[\s\S]{0,260}?view\.page = 1/.test(indexJs))
 check('筛选含「无」这一档', /LEVEL_FILTER_ORDER = \['all', 'none', 'low', 'medium', 'high'\]/.test(coreJsSrc))
 check('「无」是固定灰色（不跟主题色）', /--priority-none:\s*#[0-9a-fA-F]{6}/.test(appWxssInput)
   && /\.badge\.priority-none\s*\{[\s\S]*?var\(--priority-none\)/.test(appWxssInput)
@@ -405,11 +430,10 @@ check('定义了 undoAction / redoAction', bodyOf(indexJs, 'undoAction').include
 // 注意：afterTimeTravel 在定义之前就被 this.afterTimeTravel('add') 调用过，
 // bodyOf 取的是"第一次出现"后面的函数体，会取错 → 这里用带参数的函数头锚定
 check('撤回后切回「全部」并回到第 1 页', /afterTimeTravel\(soundKey\)\s*\{[\s\S]*?view\.filter = 'all'[\s\S]*?view\.page = 1/.test(indexJs))
-check('箭头在排序与优先级筛选之间', (() => {
-  const a = indexWxmlInput.indexOf('class="sort-btn"')
-  const b = indexWxmlInput.indexOf('class="undo-group"')
-  const c = indexWxmlInput.indexOf('class="priority-filter"')
-  return a !== -1 && b !== -1 && c !== -1 && a < b && b < c
+check('三个下拉在左、撤回箭头在右（同一行）', (() => {
+  const menus = indexWxmlInput.indexOf('class="toolbar-menus"')
+  const undo = indexWxmlInput.indexOf('class="undo-group"')
+  return menus !== -1 && undo !== -1 && menus < undo
 })())
 check('两个箭头都能点且有可访问名', /bindtap="undoAction"[^>]*aria-label="撤回"/.test(indexWxmlInput) && /bindtap="redoAction"[^>]*aria-label="取消撤回"/.test(indexWxmlInput))
 check('箭头是实心主题色（与「添加」按钮同色）', /\.undo-btn\s*\{[\s\S]*?background:\s*var\(--primary\)/.test(appWxssInput))

@@ -301,12 +301,19 @@ function nextLevel(level) {
   return LEVELS[(LEVELS.indexOf(normalizeLevel(level)) + 1) % LEVELS.length]
 }
 
-const SORT_ORDER = ['time-desc', 'time-asc', 'priority-desc', 'priority-asc', 'name-asc', 'name-desc']
+const SORT_ORDER = [
+  'time-desc', 'time-asc',
+  'priority-desc', 'priority-asc',
+  'urgency-desc', 'urgency-asc',
+  'name-asc', 'name-desc',
+]
 const SORT_LABELS = {
   'time-desc': '按照时间降序',
   'time-asc': '按照时间升序',
   'priority-desc': '按照轻重降序',
   'priority-asc': '按照轻重升序',
+  'urgency-desc': '按照缓急降序',
+  'urgency-asc': '按照缓急升序',
   'name-asc': '按照名称升序',
   'name-desc': '按照名称降序',
 }
@@ -315,6 +322,8 @@ const SORT_SHORT = {
   'time-asc': '时间 ↑',
   'priority-desc': '轻重 ↓',
   'priority-asc': '轻重 ↑',
+  'urgency-desc': '缓急 ↓',
+  'urgency-asc': '缓急 ↑',
   'name-asc': '名称 ↑',
   'name-desc': '名称 ↓',
 }
@@ -368,11 +377,15 @@ function sortVisibleItems(visible, sort) {
   const timeOf = (t) => (typeof t.createdAt === 'number' ? t.createdAt : 0)
   // 排序按「轻重」算，「无」排最后（等级最低）；同档内按时间从新到旧
   const rankOf = (t) => LEVEL_RANK[normalizeLevel(t.priority)]
+  // 按「缓急」排序同理
+  const urgencyRankOf = (t) => LEVEL_RANK[normalizeLevel(t.urgency)]
   const comparators = {
     'time-desc': (a, b) => timeOf(b.todo) - timeOf(a.todo),
     'time-asc': (a, b) => timeOf(a.todo) - timeOf(b.todo),
     'priority-desc': (a, b) => rankOf(b.todo) - rankOf(a.todo) || timeOf(b.todo) - timeOf(a.todo),
     'priority-asc': (a, b) => rankOf(a.todo) - rankOf(b.todo) || timeOf(b.todo) - timeOf(a.todo),
+    'urgency-desc': (a, b) => urgencyRankOf(b.todo) - urgencyRankOf(a.todo) || timeOf(b.todo) - timeOf(a.todo),
+    'urgency-asc': (a, b) => urgencyRankOf(a.todo) - urgencyRankOf(b.todo) || timeOf(b.todo) - timeOf(a.todo),
     'name-asc': (a, b) => NAME_COMPARE.compare(a.todo.text, b.todo.text),
     'name-desc': (a, b) => NAME_COMPARE.compare(b.todo.text, a.todo.text),
   }
