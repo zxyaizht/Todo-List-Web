@@ -507,6 +507,78 @@ function parsePageInput(raw, totalPages) {
   return Math.min(total, n)
 }
 
+/* ── 任务组（把多个任务装进一个"文件夹"） ── */
+
+/* 新建任务组时的默认名字：取最小的、当前**没被占用**的「任务组N」。
+ * 只看当前存在的任务组 —— 删掉的不占号。用户给的三个例子正好覆盖这三种情况：
+ *   · 有 任务组1 / 任务组2      → 下一个默认是 任务组3
+ *   · 这两个都被删了            → 下一个默认又是 任务组1
+ *   · 只有 任务组2              → 下一个默认是 任务组1，再下一个是 任务组3 */
+function nextGroupName(groups) {
+  const used = {}
+  ;(groups || []).forEach((g) => {
+    used[String((g && g.name) || '').trim()] = true
+  })
+  let n = 1
+  while (used[`任务组${n}`]) n += 1
+  return `任务组${n}`
+}
+
+/* 主列表的行 = 任务组 + 未分组任务。
+ * 规则（用户没细说，这里定死并写进文档）：
+ *   · 任务组永远排在最前面（像文件夹），**不参与等级筛选、不参与排序**（它本身没有等级），
+ *     只在搜索时按组名匹配；
+ *   · 组内任务不在主列表里单独出现（它们属于那个组，进组里看）；
+ *   · 普通任务照旧走「完成状态 + 轻重 + 缓急」筛选 + 搜索 + 排序。
+ * 安全性：任务的 groupId 指向一个**不存在的组**时（数据异常 / 组被删了）按"未分组"处理，
+ * 绝不能让任务凭空消失。 */
+function buildListRows(groups, tasks, view) {
+  const list = groups || []
+  const groupIds = {}
+  const counts = {}
+  list.forEach((g) => {
+    groupIds[String(g.id)] = true
+  })
+  tasks.forEach((t) => {
+    const key = String(t.groupId)
+    if (t.groupId == null || !groupIds[key]) return
+    counts[key] = (counts[key] || 0) + 1
+  })
+
+  const rows = []
+  const q = String(view.search || '').trim()
+  list.forEach((g) => {
+    const name = String((g && g.name) || '')
+    let indices = null
+    if (q) {
+      const matched = fuzzyMatch(name, q)
+      if (!matched.matched) return // 搜名字没命中就不显示这个组
+      indices = matched.indices
+    }
+    rows.push({ kind: 'group', group: g, name, count: counts[String(g.id)] || 0, indices })
+  })
+
+  const ungrouped = tasks.filter((t) => t.groupId == null || !groupIds[String(t.groupId)])
+  queryItems(ungrouped, view).forEach((x) => {
+    rows.push({ kind: 'todo', todo: x.todo, indices: x.indices })
+  })
+  return rows
+}
+
+/* 一次拿到列表行 + 分页信息 + 当前页那几行（只给当前页算高亮分段） */
+function getListPage(groups, tasks, view) {
+  const rows = buildListRows(groups, tasks, view)
+  const totalPages = getTotalPages(rows.length)
+  const page = clampPage(view.page, totalPages)
+  return {
+    rows,
+    visibleCount: rows.length,
+    totalPages,
+    page,
+    pageRows: rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+  }
+}
+
 module.exports = {
   hexToHsl,
   hslToHex,
@@ -559,6 +631,10 @@ module.exports = {
   queryItems,
   getVisibleItems,
   getPageItems,
+  // 任务组
+  nextGroupName,
+  buildListRows,
+  getListPage,
   PAGE_SIZE,
   getTotalPages,
   clampPage,

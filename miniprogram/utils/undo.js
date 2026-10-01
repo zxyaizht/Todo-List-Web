@@ -1,9 +1,10 @@
 /* 撤回 / 取消撤回（undo / redo）
  *
- * 做法是**快照**：每次"要改动数据"之前，先把当前的任务清单 + 回收站 + 自定义色存一份；
- * 撤回就是把快照整体写回去，同时把当前状态压进重做栈。
+ * 做法是**快照**：每次"要改动数据"之前，先把当前的 任务清单 + 回收站 + 自定义色 + 任务组
+ * 存一份；撤回就是把快照整体写回去，同时把当前状态压进重做栈。
  * 比逐条记录差异简单得多，也不会漏掉某次操作的副作用
- * （比如「删除任务」= 任务出栈 + 进回收站，两处都要还原）。
+ * （比如「删除任务」= 任务出栈 + 进回收站，「合并成任务组」= 建组 + 改任务上的 groupId，
+ *   两处都要还原）。
  *
  * 进撤回栈的操作：
  *   · 任务：新增 / 删除 / 改内容 / 勾选、完成所有（取消所有）、清空已完成 / 未完成 / 全部 /
@@ -32,6 +33,8 @@ function snapshot() {
     todos: store.loadTodos().map((t) => Object.assign({}, t)),
     history: store.loadHistory().map((t) => Object.assign({}, t)),
     colors: store.loadCustomColors().slice(),
+    // 任务组也要一起快照：合并 / 解散会同时改「组」和「任务的 groupId」两处
+    groups: store.loadGroups().map((g) => Object.assign({}, g)),
   }
 }
 
@@ -39,6 +42,7 @@ function restore(snap) {
   store.saveTodos(snap.todos)
   store.saveHistory(snap.history)
   store.saveCustomColors(snap.colors)
+  store.saveGroups(snap.groups || [])
 }
 
 /* 在**改动之前**调用：把当前状态压进撤回栈。

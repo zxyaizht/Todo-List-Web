@@ -137,6 +137,28 @@ undo.undo()
 check('撤回后清单原样回来', todosText(), 'A,B')
 check('回收站也回到原样', store.loadHistory().length, 1)
 
+lines.push('--- 任务组也在快照里 ---')
+undo.reset()
+seed()
+{
+  undo.push()
+  const group = store.createGroup('任务组1', [1, 2])
+  check('合并后建了组', store.loadGroups().map((g) => g.name), ['任务组1'])
+  check('两个任务都进了组', store.loadTodos().filter((t) => String(t.groupId) === String(group.id)).length, 2)
+  check('组里能查到这两个任务', store.loadGroupTodos(group.id).map((t) => t.text), ['A', 'B'])
+  undo.undo()
+  check('撤回后组没了', store.loadGroups().length, 0)
+  check('撤回后任务上的 groupId 也清了', store.loadTodos().filter((t) => t.groupId != null).length, 0)
+}
+{
+  // 解散：任务回到清单，但任务本身不能丢
+  const group = store.createGroup('任务组X', [1])
+  const res = store.dissolveGroup(group.id)
+  check('解散返回组名与任务数', [res.name, res.count], ['任务组X', 1])
+  check('解散后组没了', store.loadGroups().length, 0)
+  check('解散后任务还在清单里', store.loadTodos().map((t) => t.text), ['A', 'B'])
+}
+
 lines.push('')
 lines.push(`通过 ${pass} 项，失败 ${fail} 项`)
 fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8')

@@ -222,6 +222,41 @@ check('乱码认不出', core.parsePageInput('#', 5), null)
 check('null / undefined 安全', [core.parsePageInput(null, 5), core.parsePageInput(undefined, 5)], [null, null])
 check('总页数缺失时按 1 页处理', core.parsePageInput('9', 0), 1)
 
+log('--- 任务组：默认组名 ---')
+// 取最小的、当前没被占用的「任务组N」；删掉的不占号
+check('没有任务组时是 任务组1', core.nextGroupName([]), '任务组1')
+check('有 1 / 2 时下一个是 3', core.nextGroupName([{ name: '任务组1' }, { name: '任务组2' }]), '任务组3')
+check('两个都删了 → 又回到 任务组1', core.nextGroupName([]), '任务组1')
+check('只有 任务组2 → 下一个是 任务组1', core.nextGroupName([{ name: '任务组2' }]), '任务组1')
+check('补上中间的空号：有 1 / 3 → 下一个是 2', core.nextGroupName([{ name: '任务组1' }, { name: '任务组3' }]), '任务组2')
+check('自定义名字不占号', core.nextGroupName([{ name: '买菜' }]), '任务组1')
+check('名字前后有空格也算已占用', core.nextGroupName([{ name: ' 任务组1 ' }]), '任务组2')
+check('数据异常（null / 没有 name）不崩', [core.nextGroupName(null), core.nextGroupName([{}])], ['任务组1', '任务组1'])
+
+log('--- 任务组：列表行合成 ---')
+const grp = { id: 9001, name: '任务组1', createdAt: 1 }
+const grpTasks = [
+  { id: 1, text: 'A', done: false, priority: 'high', urgency: 'none', createdAt: now, groupId: 9001 },
+  { id: 2, text: 'B', done: false, priority: 'high', urgency: 'none', createdAt: now },
+  { id: 3, text: 'C', done: false, priority: 'none', urgency: 'none', createdAt: now, groupId: 12345 }, // 指向不存在的组
+]
+const grpView = { search: '', filter: 'all', sort: 'default', priority: 'all', urgency: 'all', page: 1 }
+const rowText = (r) => r.kind + ':' + (r.kind === 'group' ? r.name : r.todo.text)
+check('任务组排最前，组内任务不再单列', core.buildListRows([grp], grpTasks, grpView).map(rowText), ['group:任务组1', 'todo:B', 'todo:C'])
+check('组里几个任务要数出来', core.buildListRows([grp], grpTasks, grpView)[0].count, 1)
+check('groupId 指向不存在的组 → 按未分组处理（任务绝不能消失）',
+  core.buildListRows([grp], grpTasks, grpView).filter((r) => r.kind === 'todo').length, 2)
+check('搜索命中组名 → 只留那个组', core.buildListRows([grp], grpTasks, Object.assign({}, grpView, { search: '任务组1' })).map(rowText), ['group:任务组1'])
+check('搜索没命中组名 → 组不显示', core.buildListRows([grp], grpTasks, Object.assign({}, grpView, { search: 'zzz' })).length, 0)
+check('等级筛选照样作用于任务，但不影响任务组',
+  core.buildListRows([grp], grpTasks, Object.assign({}, grpView, { priority: 'high' })).map(rowText), ['group:任务组1', 'todo:B'])
+check('分页把任务组也算进行数', (() => {
+  const many = []
+  for (let i = 0; i < 6; i++) many.push({ id: 200 + i, text: 'T' + i, done: false, priority: 'none', urgency: 'none', createdAt: now - i })
+  const info = core.getListPage([grp], many, grpView)
+  return info.visibleCount === 7 && info.totalPages === 2 && info.pageRows.length === 5 && info.pageRows[0].kind === 'group'
+})(), true)
+
 log('')
 log(`通过 ${pass} 项，失败 ${fail} 项`)
 fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8')

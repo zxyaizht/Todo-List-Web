@@ -10,6 +10,7 @@ const THEME_KEY = 'todo-theme-color'
 const SOUND_KEY = 'todo-sound-settings'
 const PRIORITY_KEY = 'todo-priority' // 「轻重」（沿用老键，老数据不用迁移）
 const URGENCY_KEY = 'todo-urgency' // 「缓急」（新键）
+const GROUPS_KEY = 'todo-groups' // 任务组（把多个任务装进一个"文件夹"）
 const COLORS_KEY = 'todo-custom-colors'
 const MAX_HISTORY = 200
 // 自定义色数量**不限**（用户要求）：只受小程序存储上限约束。
@@ -52,6 +53,8 @@ function loadTodos() {
     // 等级两个维度都收敛到合法档位：老数据没有 urgency 字段 → 当「无」
     priority: core.normalizeLevel(t.priority),
     urgency: core.normalizeLevel(t.urgency),
+    // 属于哪个任务组（null = 不在任何组里）
+    groupId: t.groupId == null ? null : t.groupId,
     done: !!t.done,
     // 老数据没有 createdAt：id 本身就是 Date.now() 生成的，可直接复用
     createdAt: t.createdAt || (isFinite(Number(t.id)) && Number(t.id) > 1e12 ? Number(t.id) : 0),
@@ -62,6 +65,81 @@ function saveTodos(todos) {
   writeList(TODOS_KEY, todos)
 }
 
+/* ── 任务组（把多个任务装进一个"文件夹"）──
+ * 任务组本身只存 id / name / createdAt；"谁属于这个组"记在**任务**的 groupId 上，
+ * 这样清单、回收站、筛选、排序的数据结构都不用动，也不会出现嵌套结构。 */
+
+function loadGroups() {
+  return readList(GROUPS_KEY).map((g) => ({
+    id: g.id,
+    name: String(g.name == null ? '' : g.name),
+    createdAt: typeof g.createdAt === 'number' ? g.createdAt : 0,
+  }))
+}
+
+function saveGroups(list) {
+  writeList(GROUPS_KEY, list)
+}
+
+/* 把一批任务放进某个组。返回实际改动的条数 */
+function addTasksToGroup(groupId, taskIds) {
+  const wanted = {}
+  ;(taskIds || []).forEach((id) => {
+    if (id != null) wanted[String(id)] = true
+  })
+  if (!Object.keys(wanted).length) return 0
+  const todos = loadTodos()
+  let changed = 0
+  todos.forEach((t) => {
+    if (!wanted[String(t.id)]) return
+    t.groupId = groupId
+    changed += 1
+  })
+  if (changed) saveTodos(todos)
+  return changed
+}
+
+/* 建一个任务组并把这批任务放进去（合并就是走这里）。返回新建的组 */
+function createGroup(name, taskIds) {
+  const now = Date.now()
+  const group = { id: now, name: String(name == null ? '' : name), createdAt: now }
+  // 新组放最前面，和任务的 LIFO 一致
+  saveGroups([group].concat(loadGroups()))
+  addTasksToGroup(group.id, taskIds)
+  return group
+}
+
+/* 解散任务组：组内任务**回到清单**（不删任务），然后删掉这个组。
+ * 返回 { name, count }，方便上层提示"解散了 xx，N 个任务回到清单"。 */
+function dissolveGroup(groupId) {
+  const key = String(groupId)
+  const groups = loadGroups()
+  const target = groups.find((g) => String(g.id) === key)
+  const todos = loadTodos()
+  let count = 0
+  todos.forEach((t) => {
+    if (String(t.groupId) === key) {
+      t.groupId = null
+      count += 1
+    }
+  })
+  if (count) saveTodos(todos)
+  if (target) saveGroups(groups.filter((g) => String(g.id) !== key))
+  return { name: target ? target.name : '', count }
+}
+
+// 某个组里的任务（按清单顺序；组不存在就返回空数组）
+function loadGroupTodos(groupId) {
+  const key = String(groupId)
+  return loadTodos().filter((t) => String(t.groupId) === key)
+}
+
+// 某个组的信息（找不到返回 null）
+function findGroup(groupId) {
+  const key = String(groupId)
+  return loadGroups().find((g) => String(g.id) === key) || null
+}
+
 /* ── 回收站（任务与自定义色共用） ── */
 
 function loadHistory() {
@@ -69,6 +147,8 @@ function loadHistory() {
     ...t,
     priority: core.normalizeLevel(t.priority),
     urgency: core.normalizeLevel(t.urgency),
+    // 记住它原来属于哪个组：从回收站恢复时还能回到组里（组没了就当未分组，见 core.buildListRows）
+    groupId: t.groupId == null ? null : t.groupId,
     done: !!t.done,
     // 历史条目原先只存了 deletedAt；用它兜底，让「按照时间」排序在回收站也有意义
     createdAt: t.createdAt || t.deletedAt || 0,
@@ -95,6 +175,8 @@ function pushToHistory(items, options) {
     // 进回收站时两个等级都要透传，否则恢复回来会丢
     priority: core.normalizeLevel(t.priority),
     urgency: core.normalizeLevel(t.urgency),
+    // 原来在哪个组也记着，恢复时能回组里
+    groupId: t.groupId == null ? null : t.groupId,
     kind: t.kind,
     createdAt: t.createdAt,
     deletedAt: Date.now(),
@@ -280,6 +362,14 @@ module.exports = {
   HISTORY_TITLES,
   loadTodos,
   saveTodos,
+  // 任务组
+  loadGroups,
+  saveGroups,
+  addTasksToGroup,
+  createGroup,
+  dissolveGroup,
+  loadGroupTodos,
+  findGroup,
   loadHistory,
   saveHistory,
   countHistory,
