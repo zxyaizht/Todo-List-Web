@@ -204,8 +204,13 @@ Page({
       success: () => {
         wx.showToast({ title: `已复制 ${hex}`, icon: 'none' })
       },
-      fail: () => {
-        wx.showToast({ title: '复制失败', icon: 'none' })
+      fail: (err) => {
+        /* 剪贴板是**隐私接口**（官方归在"读取你的剪贴板"），用户没同意隐私协议时这里会失败：
+         * 错误码 103（用户拒绝）/ 104（用户未同意隐私协议），errMsg 里也带 privacy。
+         * 那种情况不能说"复制失败"，得告诉用户该怎么办。 */
+        const msg = String((err && err.errMsg) || '')
+        const refused = /privacy/i.test(msg) || !!(err && (err.errno === 103 || err.errno === 104))
+        wx.showToast({ title: refused ? '请先同意隐私协议' : '复制失败', icon: 'none' })
       },
     })
   },

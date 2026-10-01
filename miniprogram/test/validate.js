@@ -574,6 +574,11 @@ check('syncNavigationBar 会重设导航栏颜色', /setNavigationBarColor/.test
   check('页面 onReady 里再同步一次导航栏：' + p, /onReady\s*\(\s*\)\s*\{[\s\S]*?syncNavigationBar/.test(src))
 })
 check('复制用 wx.setClipboardData', read(path.join(ROOT, 'pages', 'settings', 'settings.js')).includes('setClipboardData'))
+/* 剪贴板是隐私接口：用户没同意隐私协议时会失败（错误码 103/104），要给出可操作的提示，
+ * 不能只说"复制失败"。 */
+check('复制失败时区分"没同意隐私协议"和普通失败',
+  /copyCode\(e\)[\s\S]{0,700}?errno === 103 \|\| err\.errno === 104/.test(settingsJs)
+  && settingsJs.includes('请先同意隐私协议'))
 check('存储用 wx.setStorageSync（不是 localStorage）', read(path.join(ROOT, 'utils', 'storage.js')).includes('wx.setStorageSync') && !read(path.join(ROOT, 'utils', 'storage.js')).includes('localStorage'))
 
 /* ── 任务组：合并 / 批量合并 / 组内子页面（2026-10-01） ── */
