@@ -1,7 +1,8 @@
-/* 顶部标题栏（📝 我的待办清单 + 副标题）已按用户要求去掉，
-   齿轮挪到下面「优先级」那一行的左侧，所以这里不再需要 .header / .header-main。 */
+/* 主列表**专属**的样式只有这两个（齿轮与「历史记录」按钮）。
+ * 其余共用样式（.priority-row / .priority-row-left / .search-icon / .badge-hit /
+ * .level-pick / .urgency-hit / .level-dialog-row）已挪到 app.wxss —— 任务组子页面也要用同一套。 */
 
-/* 设置齿轮：和优先级胶囊同一行、紧挨在它左边 */
+/* 设置齿轮：和等级按钮同一行、紧挨在它们左边 */
 .settings-gear {
   flex-shrink: 0;
   width: 72rpx;
@@ -14,24 +15,7 @@
   border-radius: 50%;
 }
 
-/* 齿轮 + 优先级作为一组靠左，历史记录仍然贴右 */
-.priority-row-left {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  min-width: 0;
-}
-
-/* 齿轮 + 优先级 + 历史记录同一行；窄屏放不下时整行换行，别互相挤压 */
-.priority-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12rpx;
-  margin-top: 20rpx;
-}
-
+/* 历史记录按钮：与齿轮同一行、贴右 */
 .history-btn {
   flex-shrink: 0;
   padding: 12rpx 22rpx;
@@ -41,49 +25,4 @@
   background: var(--primary-soft);
   border: 2rpx solid rgba(var(--primary-rgb), 0.25);
   border-radius: 999rpx;
-}
-
-.search-icon {
-  flex-shrink: 0;
-  font-size: 26rpx;
-  color: var(--text-light);
-}
-
-/* 点优先级标签改优先级：外面套一层只是把点按区域从 44rpx 放大到 68rpx，
-   负 margin 把多出来的内边距抵消掉，所以视觉位置和原来完全一样 */
-.badge-hit {
-  flex-shrink: 0;
-  padding: 12rpx;
-  margin: -12rpx;
-}
-
-/* 等级相关按钮不做按下变淡的反馈（用户要求：换档时图标颜色直接切，不要"变浅再变深"）。
-   卡片下拉那类按钮用 hover 背景色反馈，不涉及图标颜色。 */
-
-/* 新建任务那一行的两个等级按钮（圆=轻重、沙漏=缓急）：外面套一层把点按区域放大，
-   负 margin 把多出来的内边距抵消掉，所以视觉位置就是设计的位置 */
-.level-pick {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: 12rpx;
-  margin: -12rpx;
-}
-
-/* 任务行里的沙漏：同样套一层放大点按区域（沙漏本身只有 32rpx 宽） */
-.urgency-hit {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: 12rpx;
-  margin: -12rpx;
-}
-
-/* 改等级弹窗：两行（轻重 / 缓急），每行是「标签 + 四个胶囊」，居中摆放 */
-.level-dialog-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12rpx;
-  margin-top: 24rpx;
 }

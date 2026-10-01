@@ -745,3 +745,176 @@ page {
   color: #ffffff;
   background: var(--primary);
 }
+
+/* ── 等级相关的共用布局（主列表与任务组子页面都要用，所以放在全局） ── */
+
+/* 等级按钮那一行：齿轮 / 等级 / 历史记录排一排；窄屏放不下整行换行，别互相挤压 */
+.priority-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+/* 靠左那一组（齿轮 + 两个等级按钮），历史记录仍贴右 */
+.priority-row-left {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
+}
+
+.search-icon {
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: var(--text-light);
+}
+
+/* 任务行里的圆形（轻重）：外面套一层把点按区域从 44rpx 放大到 68rpx，
+   负 margin 把多出来的内边距抵消掉，所以视觉位置不变 */
+.badge-hit {
+  flex-shrink: 0;
+  padding: 12rpx;
+  margin: -12rpx;
+}
+
+/* 新建任务那一行的两个等级按钮（圆=轻重、沙漏=缓急）：同样套一层放大点按区域 */
+.level-pick {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 12rpx;
+  margin: -12rpx;
+}
+
+/* 任务行里的沙漏（缓急）：同样放大点按区域（沙漏本身只有 34rpx 宽） */
+.urgency-hit {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 12rpx;
+  margin: -12rpx;
+}
+
+/* 改等级弹窗：两行（轻重 / 缓急），每行是「标签 + 四个胶囊」，居中摆放 */
+.level-dialog-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  margin-top: 24rpx;
+}
+
+/* ── 任务组那一行（像文件夹）：左边一个 90° 右箭头 + 组名 + 任务数 ── */
+
+.item-group {
+  border-left-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.group-arrow {
+  flex-shrink: 0;
+  width: 44rpx;
+  height: 44rpx;
+  line-height: 38rpx;
+  text-align: center;
+  font-size: 38rpx;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.group-name {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.group-count {
+  flex-shrink: 0;
+  padding: 4rpx 12rpx;
+  font-size: 22rpx;
+  color: var(--primary);
+  background: var(--card-bg);
+  border-radius: 10rpx;
+}
+
+/* ── 分页行上的「合并 / 完成 / 取消」 ──
+ * 合并按钮颜色比旁边的清空类更深：清空类是浅底、这个是实心主题色（用户要求"更深、依旧跟随主题"）。 */
+.pagination-merge {
+  justify-content: space-between;
+}
+
+.pagination-pages {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20rpx;
+}
+
+.merge-btn {
+  flex-shrink: 0;
+  padding: 12rpx 24rpx;
+  font-size: 25rpx;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--primary);
+  border: 2rpx solid transparent;
+  border-radius: 999rpx;
+}
+
+/* 「取消」用浅色，别和「完成」抢注意力 */
+.merge-btn.cancel {
+  color: var(--text-muted);
+  background: var(--primary-soft);
+  border-color: rgba(var(--primary-rgb), 0.2);
+}
+
+/* ── 合并模式：勾选框变成"要不要加入新组" ──
+ * 故意换成**圆形 + 虚线**，和普通模式下那套"圆角方块 + 实心"（表示完成）一眼就能区分。 */
+.item.merge-pick {
+  border-left-color: var(--primary);
+}
+
+.item.merge-picked {
+  background: var(--primary-soft);
+}
+
+.check.picking {
+  border-radius: 50%;
+  border-style: dashed;
+}
+
+.check.picking.picked {
+  border-style: solid;
+  border-color: var(--primary);
+  color: #ffffff;
+  background: var(--primary);
+}
+
+/* ── 拖动任务去合并：跟随手指的小浮标 + 落点高亮 ── */
+
+.drag-ghost {
+  position: fixed;
+  left: 24rpx;
+  right: 24rpx;
+  z-index: 300;
+  padding: 22rpx 24rpx;
+  font-size: 29rpx;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 2rpx solid var(--primary);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12rpx 32rpx rgba(15, 23, 42, 0.2);
+  opacity: 0.96;
+}
+
+.item.dragging {
+  opacity: 0.4;
+}
+
+.item.drag-over {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}

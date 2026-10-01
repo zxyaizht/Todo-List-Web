@@ -68,7 +68,9 @@ appJson.pages.forEach((p) => {
     const pageJson = JSON.parse(read(base + '.json'))
     check('页面声明了 usingComponents：' + p, !!pageJson.usingComponents && typeof pageJson.usingComponents === 'object')
     const used = read(base + '.wxml').match(/<([a-z][a-z0-9]*-[a-z0-9-]+)/g) || []
-    const custom = used.map((t) => t.slice(1)).filter((t) => !['wx-', 'scroll-', 'swiper-', 'movable-', 'cover-', 'picker-', 'rich-', 'func-'].some((p2) => t.startsWith(p2)))
+    // 带连字符的**内置组件**（page-meta / cover-view / scroll-view …）不算自定义组件
+    const BUILTIN = ['wx-', 'scroll-', 'swiper-', 'movable-', 'cover-', 'picker-', 'rich-', 'func-', 'page-meta', 'match-media', 'root-portal', 'share-element', 'keyboard-accessory', 'voip-room', 'page-container']
+    const custom = used.map((t) => t.slice(1)).filter((t) => !BUILTIN.some((p2) => t.startsWith(p2) || t === p2))
     check('没有用到未声明的自定义组件：' + p, custom.every((t) => !!pageJson.usingComponents[t]), custom.join(', '))
   } catch (e) {
     bad('读取页面 json：' + p, e.message)
@@ -318,15 +320,18 @@ check('最近用色跳页后走统一跳页逻辑', /apply\(next\)[\s\S]{0,90}?g
 /* 等级拆成两个维度（2026-10-01 用户要求）：轻重（圆形，存 priority）+ 缓急（沙漏，存 urgency）。
  * 两个都放在**任务名右边、日期左边** —— 一是成组好认，二是离左边的完成按钮远一点，
  * 点「完成」时不会误触到改等级（用户踩过这个）。
- * 注意：这里用本地变量读 index.wxss —— 后面的 indexWxssUi 声明在这段断言**之后**，
- * 直接引用会触发 TDZ（这个坑踩过好几次了）。 */
-const indexWxssBadge = read(path.join(ROOT, 'pages', 'index', 'index.wxss'))
+ * 注意：等级相关那几条样式（.badge-hit / .urgency-hit / .level-pick 等）已从 index.wxss
+ * **挪到 app.wxss**（任务组子页面也要用同一套），所以这里把两个文件拼起来判 ——
+ * 后面声明的 indexWxssUi 在这段断言**之后**，不能直接引用（TDZ，踩过好几次）。 */
+const indexWxssBadge = read(path.join(ROOT, 'pages', 'index', 'index.wxss')) + appWxssInput
+// 只在「普通任务」那一段里比顺序（任务组那行也在同一个循环里，会干扰全局 indexOf）
+const taskRowPart = indexWxmlInput.slice(indexWxmlInput.indexOf('<!-- 普通任务 -->'))
 check('任务行的顺序：完成按钮 → 名称 → 轻重圆 → 缓急沙漏 → 日期', (() => {
-  const c = indexWxmlInput.indexOf('class="check ')
-  const t = indexWxmlInput.indexOf('class="item-text')
-  const w = indexWxmlInput.indexOf('class="badge-hit"')
-  const u = indexWxmlInput.indexOf('class="urgency-hit"')
-  const d = indexWxmlInput.indexOf('class="item-date"')
+  const c = taskRowPart.indexOf('class="check ')
+  const t = taskRowPart.indexOf('class="item-text')
+  const w = taskRowPart.indexOf('class="badge-hit"')
+  const u = taskRowPart.indexOf('class="urgency-hit"')
+  const d = taskRowPart.indexOf('class="item-date"')
   return c !== -1 && t !== -1 && w !== -1 && u !== -1 && d !== -1 && c < t && t < w && w < u && u < d
 })())
 check('圆和沙漏都可点，且点哪个都开改等级弹窗', /class="badge-hit" data-id="\{\{item\.id\}\}" bindtap="openLevelDialog"/.test(indexWxmlInput)
@@ -475,8 +480,8 @@ check('齿轮排在两个等级按钮左边（顺序：齿轮 → 轻重圆 → 
   const h = indexWxmlUi.indexOf('class="history-btn"')
   return g !== -1 && w !== -1 && u !== -1 && h !== -1 && g < w && w < u && u < h
 })())
-check('齿轮与等级按钮同组（space-between 下仍紧挨着）', /class="priority-row-left"/.test(indexWxmlUi) && /\.priority-row-left\s*\{/.test(indexWxssUi))
-check('优先级行窄屏可换行（齿轮+胶囊+历史记录一行放不下时）', /\.priority-row\s*\{[\s\S]*?flex-wrap:\s*wrap/.test(indexWxssUi))
+check('齿轮与等级按钮同组（space-between 下仍紧挨着）', /class="priority-row-left"/.test(indexWxmlUi) && /\.priority-row-left\s*\{/.test(appWxssInput))
+check('优先级行窄屏可换行（齿轮+胶囊+历史记录一行放不下时）', /\.priority-row\s*\{[\s\S]*?flex-wrap:\s*wrap/.test(appWxssInput))
 check('历史记录与优先级同一行', /class="priority-row"/.test(indexWxmlUi) && /class="history-btn"/.test(indexWxmlUi))
 check('旧的 topbar 已移除', !/topbar/.test(indexWxmlUi) && !/topbar/.test(indexWxssUi))
 check('操作按钮文字允许换行', /\.action-btn\s*\{[\s\S]*?white-space:\s*normal/.test(appWxssUi))
@@ -526,8 +531,8 @@ check('主列表：筛选+完成所有仍在清单上方', posIn(indexWxmlInput,
 check('主列表：排序与优先级筛选仍在最上方', posIn(indexWxmlInput, 'class="list-toolbar"') < posIn(indexWxmlInput, 'class="list"'))
 check('主列表：清空类 4 个挪到清单下方', posIn(indexWxmlInput, 'bindtap="clearAll"') > posIn(indexWxmlInput, 'class="list"'))
 check('主列表：页码仍紧跟在清单之后（在清空之前）',
-  posIn(indexWxmlInput, 'class="pagination"') > posIn(indexWxmlInput, 'class="list"')
-  && posIn(indexWxmlInput, 'class="pagination"') < posIn(indexWxmlInput, 'bindtap="clearAll"'))
+  posIn(indexWxmlInput, 'class="pagination ') > posIn(indexWxmlInput, 'class="list"')
+  && posIn(indexWxmlInput, 'class="pagination ') < posIn(indexWxmlInput, 'bindtap="clearAll"'))
 check('主列表：挪下去的操作行有分隔间距', /class="action-row action-row-bottom"/.test(indexWxmlInput))
 check('回收站：筛选行仍在清单上方', posIn(historyWxmlInput, 'bindtap="setFilter"') < posIn(historyWxmlInput, 'class="list"'))
 check('回收站：恢复+清空 6 个挪到清单下方',
@@ -548,9 +553,94 @@ check('syncNavigationBar 会重设导航栏颜色', /setNavigationBarColor/.test
   check('页面 onShow 里同步导航栏：' + p, /onShow\s*\(\s*\)\s*\{[\s\S]*?syncNavigationBar/.test(src))
   check('页面 onReady 里再同步一次导航栏：' + p, /onReady\s*\(\s*\)\s*\{[\s\S]*?syncNavigationBar/.test(src))
 })
-check('排序用 showActionSheet（原生选择器）', indexJs.includes('showActionSheet'))
 check('复制用 wx.setClipboardData', read(path.join(ROOT, 'pages', 'settings', 'settings.js')).includes('setClipboardData'))
 check('存储用 wx.setStorageSync（不是 localStorage）', read(path.join(ROOT, 'utils', 'storage.js')).includes('wx.setStorageSync') && !read(path.join(ROOT, 'utils', 'storage.js')).includes('localStorage'))
+
+/* ── 任务组：合并 / 批量合并 / 组内子页面（2026-10-01） ── */
+
+// 数据层
+check('storage 有任务组的读写/合并/解散/查询',
+  ['loadGroups', 'saveGroups', 'addTasksToGroup', 'createGroup', 'dissolveGroup', 'loadGroupTodos', 'findGroup']
+    .every((fn) => new RegExp('function ' + fn + '\\(').test(storageJs)))
+check('撤销快照包含任务组（合并会同时改组和任务的 groupId）',
+  undoJs.includes('groups: store.loadGroups()') && undoJs.includes('store.saveGroups'))
+check('core 有默认组名与列表行合成',
+  ['nextGroupName', 'buildListRows', 'getListPage'].every((fn) => coreJsSrc.includes('function ' + fn + '(')))
+
+// 主列表：任务组行
+check('任务组行有 90° 右箭头，点它进组', /class="group-arrow"[^>]*bindtap="openGroup"/.test(indexWxmlInput))
+check('任务组行显示组名与任务数',
+  /class="item-text group-name"[^>]*bindtap="openGroup"/.test(indexWxmlInput) && /\{\{item\.count\}\} 项/.test(indexWxmlInput))
+check('任务组行右侧有删除（解散）', /class="item-op del" data-id="\{\{item\.id\}\}" bindtap="removeGroup"/.test(indexWxmlInput))
+check('主列表用 core.getListPage 合成「组 + 任务」的行', indexJs.includes('core.getListPage(groups, todos, view)'))
+check('混排的 wx:key 带前缀（防组/任务 id 撞车）',
+  /wx:key="key"/.test(indexWxmlInput) && indexJs.includes("key: 'g-' + row.group.id") && indexJs.includes("key: 't-' + t.id"))
+check('解散任务组要二次确认', /removeGroup\(e\)[\s\S]{0,700}?wx\.showModal/.test(indexJs))
+check('解散时组内任务一起进回收站（用户选择）', /removeGroup\(e\)[\s\S]{0,1100}?store\.pushToHistory\(members\)/.test(indexJs))
+
+// 批量合并
+check('合并按钮在分页行最左（上一页左边）', (() => {
+  const m = indexWxmlInput.indexOf('class="merge-btn')
+  const p = indexWxmlInput.indexOf('class="pagination-pages"')
+  const prev = indexWxmlInput.indexOf('bindtap="prevPage"')
+  return m !== -1 && p !== -1 && prev !== -1 && m < p && p < prev
+})())
+check('分页行在 total>0 就渲染（只有一页时也点得到合并）',
+  /wx:if="\{\{total > 0\}\}" class="pagination pagination-merge"/.test(indexWxmlInput))
+check('合并模式下按钮变「完成」并带已选数量',
+  /class="merge-btn \{\{mergeMode \? 'done' : ''\}\}" bindtap="mergeAction"/.test(indexWxmlInput)
+  && /mergeMode \? '完成'/.test(indexWxmlInput) && /pickedCount/.test(indexWxmlInput))
+check('合并模式最右出现「取消」', /wx:if="\{\{mergeMode\}\}" class="merge-btn cancel" bindtap="cancelMerge"/.test(indexWxmlInput))
+check('勾选框在合并模式下只做选择、不动完成状态',
+  /onCheckTap\(e\)[\s\S]{0,300}?if \(!this\.data\.mergeMode\) return this\.toggleTodo\(e\)/.test(indexJs))
+check('取消合并会恢复筛选 / 搜索 / 页码', /cancelMerge\(\)[\s\S]{0,900}?view\.page = before\.page/.test(indexJs))
+check('合并按钮比清空类更深（实心主题色，仍跟随主题）',
+  /\.merge-btn\s*\{[\s\S]*?background:\s*var\(--primary\)/.test(appWxssInput)
+  && /\.merge-btn\.cancel\s*\{[\s\S]*?background:\s*var\(--primary-soft\)/.test(appWxssInput))
+check('至少选两个才能合并', indexJs.includes('至少选两个任务才能合并'))
+
+// 命名弹窗
+check('命名弹窗打开即自动聚焦（直接弹输入法）', /\{\{groupDialog\}\}[\s\S]{0,800}?auto-focus="\{\{true\}\}"/.test(indexWxmlInput))
+check('命名输入框背景与「今天要做什么」一致（同一个变量）',
+  /\.page-dialog-input\s*\{[\s\S]*?background:\s*var\(--primary-soft\)/.test(appWxssInput)
+  && /\.form-input\s*\{[\s\S]*?background:\s*var\(--primary-soft\)/.test(appWxssInput))
+check('placeholder 写「直接确认默认为任务组N」',
+  indexJs.includes('直接确认默认为${fallback}') && /placeholder="\{\{groupPlaceholder\}\}"/.test(indexWxmlInput))
+check('默认名用 core.nextGroupName 实时算',
+  /openGroupDialog\(taskIds\)[\s\S]{0,500}?core\.nextGroupName\(store\.loadGroups\(\)\)/.test(indexJs))
+check('直接确定就用默认名', /const name = typed \|\| core\.nextGroupName\(store\.loadGroups\(\)\)/.test(indexJs))
+check('确定后建组、记撤回、退出合并模式',
+  /confirmGroupDialog\(\)[\s\S]{0,1000}?undo\.push\(\)[\s\S]{0,200}?store\.createGroup\(name, ids\)/.test(indexJs)
+  && /confirmGroupDialog\(\)[\s\S]{0,1400}?mergeMode: false/.test(indexJs))
+
+// 拖动合并
+check('任务行接了长按 / 拖动 / 松手三个事件',
+  /bindlongpress="onItemLongPress"[\s\S]{0,200}?bindtouchmove="onItemTouchMove"[\s\S]{0,200}?bindtouchend="onItemTouchEnd"/.test(indexWxmlInput))
+check('拖动时禁止页面滚动（page-meta）',
+  /<page-meta page-style="\{\{dragging \? 'overflow: hidden;' : ''\}\}"><\/page-meta>/.test(indexWxmlInput))
+check('拖动有跟随手指的浮标与落点高亮',
+  /\{\{dragging\}\}" class="drag-ghost"/.test(indexWxmlInput) && /\.item\.drag-over\s*\{/.test(appWxssInput))
+check('落在任务组上 = 直接加入该组', /onItemTouchEnd\(\)[\s\S]{0,1000}?store\.addTasksToGroup\(group\.id, \[dragId\]\)/.test(indexJs))
+check('落在另一个任务上 = 建新组并弹命名', /onItemTouchEnd\(\)[\s\S]{0,1500}?openGroupDialog\(\[String\(dragId\), String\(over\.id\)\]\)/.test(indexJs))
+check('拖完短暂屏蔽行点击（防误触发改名 / 完成）',
+  /onItemTouchEnd\(\)[\s\S]{0,700}?suppressTapUntil = Date\.now\(\) \+ 300/.test(indexJs) && /tapBlocked\(\)/.test(indexJs))
+check('任务组本身不能被拖', /onItemLongPress\(e\)[\s\S]{0,400}?row\.kind === 'group'\) return/.test(indexJs))
+check('拖动时定时重量元素位置（页面万一滚了也不跑偏）',
+  /onItemLongPress\(e\)[\s\S]{0,1200}?setInterval\(/.test(indexJs) && /measureRows\(\)/.test(indexJs))
+
+// 组内子页面
+const groupJs = read(path.join(ROOT, 'pages', 'group', 'group.js'))
+const groupWxml = read(path.join(ROOT, 'pages', 'group', 'group.wxml'))
+check('组内页面输入框文案是「还要做什么」', /placeholder="还要做什么？"/.test(groupWxml))
+check('组内页面没有齿轮与历史记录', !/goSettings/.test(groupWxml) && !/goHistory/.test(groupWxml))
+check('组内页面标题 = 任务组名', groupJs.includes('wx.setNavigationBarTitle({ title: group.name })'))
+check('组不存在时提示并退回', /findGroup\(id\)[\s\S]{0,500}?navigateBack/.test(groupJs))
+check('新任务带 groupId 落进本组', /groupId: this\.groupId/.test(groupJs))
+check('组内增删改都写回整份清单（不能冲掉其它任务）',
+  groupJs.includes('store.saveTodos(todos.filter((t) => !ids[String(t.id)]))') && /store\.loadTodos\(\)/.test(groupJs))
+check('组内没有清空全部 / 完成所有并清空 / 合并',
+  !/clearAll\(/.test(groupWxml) && !/completeClear/.test(groupWxml) && !/mergeAction/.test(groupWxml))
+check('组内页面也同步导航栏主题', /onShow\s*\(\s*\)\s*\{[\s\S]{0,120}?syncNavigationBar/.test(groupJs))
 
 lines.push('')
 lines.push(`通过 ${pass} 项，失败 ${fail} 项`)

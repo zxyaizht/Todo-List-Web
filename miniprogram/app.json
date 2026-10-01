@@ -2,7 +2,8 @@
   "pages": [
     "pages/index/index",
     "pages/history/history",
-    "pages/settings/settings"
+    "pages/settings/settings",
+    "pages/group/group"
   ],
   "window": {
     "navigationBarBackgroundColor": "#2563eb",

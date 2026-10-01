@@ -33,7 +33,7 @@ function decorate(item, indices) {
     id: item.id,
     text: item.text,
     done: !!item.done,
-    // 轻重 = 左边的圆形（存字段仍是 priority），缓急 = 右边的沙漏
+    // 轻重 = 右边的圆形（存字段仍是 priority），缓急 = 沙漏
     priority: core.normalizeLevel(item.priority),
     weightLabel: core.WEIGHT_LABELS[core.normalizeLevel(item.priority)],
     urgency: core.normalizeLevel(item.urgency),
@@ -41,6 +41,27 @@ function decorate(item, indices) {
     segments: core.highlightSegments(item.text, indices).map((s, i) => ({ v: s.v, hit: s.hit, i })),
     dateText: core.formatCreatedAt(item.createdAt),
   }
+}
+
+/* 列表行有两种：任务组（文件夹）和普通任务。
+ * wx:key 用带前缀的 key —— 任务组和任务的 id 都是 Date.now() 生成的，理论上会撞。
+ * 行样式也在这里算好（任务组的行不加 priority-xxx / done）。 */
+function decorateRow(row) {
+  if (row.kind === 'group') {
+    return {
+      kind: 'group',
+      key: 'g-' + row.group.id,
+      id: row.group.id,
+      name: row.name,
+      count: row.count,
+      rowClass: 'item-group',
+      segments: core.highlightSegments(row.name, row.indices).map((s, i) => ({ v: s.v, hit: s.hit, i })),
+    }
+  }
+  const t = decorate(row.todo, row.indices)
+  return Object.assign({ kind: 'todo', key: 't-' + t.id }, t, {
+    rowClass: `priority-${t.priority}${t.done ? ' done' : ''}`,
+  })
 }
 
 Page({
@@ -90,6 +111,20 @@ Page({
     // 改等级弹窗（点任务上的圆形或沙漏）：一个弹窗两行，轻重 + 缓急
     levelDialog: false,
     levelPick: { priority: 'none', urgency: 'none' },
+    // 批量合并模式：这一模式下左侧勾选框表示"要不要加入新组"，不再是"完成"
+    mergeMode: false,
+    pickedIds: {},
+    pickedCount: 0,
+    // 新建任务组的命名弹窗（打开即自动聚焦，什么都不输就确定 → 用默认名）
+    groupDialog: false,
+    groupName: '',
+    groupPlaceholder: '',
+    // 拖动任务去合并：跟随手指的浮标 + 落点高亮
+    dragging: false,
+    dragText: '',
+    dragY: 0,
+    dragId: '',
+    dragOverId: '',
     visibleCount: 0,
     totalPages: 1,
     page: 1,
@@ -142,6 +177,7 @@ Page({
 
   refresh() {
     const todos = store.loadTodos()
+    const groups = store.loadGroups()
     /* 计数一律用**全部任务**，不随优先级筛选变化。
      * 这几个数字对应的是「清空已完成 / 清空未完成 / 完成所有 / 取消所有」这些**全局动作**：
      * 作用范围必须和数字一致，否则一旦筛了优先级就会出现
@@ -149,12 +185,11 @@ Page({
      * 网页版同样是全量计数，这里与它保持一致。 */
     const completed = todos.filter((t) => t.done).length
     const incomplete = todos.length - completed
-    // 一次拿到过滤结果 + 页码 + 当前页条目（分段只算当前页这几条）
-    const pageInfo = core.getPageItems(todos, view)
-    const visible = pageInfo.visible
+    // 列表行 = 任务组（永远排最前）+ 未分组任务；一次拿到过滤结果 + 页码 + 当前页那几行
+    const pageInfo = core.getListPage(groups, todos, view)
+    const visible = pageInfo.rows
     view.page = pageInfo.page
-    const pageItems = pageInfo.pageItems
-    const scopeCount = core.getFilteredItems(todos, view.filter, view.priority).length
+    const scopeCount = core.getFilteredItems(todos, view.filter, view.priority, view.urgency).length
 
     // 空态文案：优先提示"没搜到"，其次按筛选说明
     let emptyIcon = '🎉'
@@ -179,7 +214,7 @@ Page({
     let hint = ''
     let hintNoMatch = false
     if (view.search.trim() && scopeCount > 0) {
-      const scoped = view.filter !== 'all' || view.priority !== 'all'
+      const scoped = view.filter !== 'all' || view.priority !== 'all' || view.urgency !== 'all'
       const prefix = scoped ? '当前筛选范围内 ' : ''
       if (visible.length > 0) hint = `${prefix}找到 ${visible.length} 项匹配（共 ${scopeCount} 项）`
       else {
@@ -189,7 +224,7 @@ Page({
     }
 
     this.setData({
-      items: pageItems.map((x) => decorate(x.todo, x.indices)),
+      items: pageInfo.pageRows.map(decorateRow),
       total: todos.length,
       completed,
       incomplete,
@@ -303,6 +338,7 @@ Page({
    * 弹窗里的选中态是**独立的一份拷贝** data.levelPick —— 绝不能借用 selectedWeight /
    * selectedUrgency（那是"新建任务用哪一档"），否则改一条任务会连带改掉下次新建的默认值。 */
   openLevelDialog(e) {
+    if (this.tapBlocked()) return
     const id = e.currentTarget.dataset.id
     const todo = store.loadTodos().find((t) => String(t.id) === String(id))
     if (!todo) return
@@ -361,6 +397,7 @@ Page({
 
   // 单个删除不弹确认框（与网页版一致）：任务先进回收站，那里就是后悔药
   deleteTodo(e) {
+    if (this.tapBlocked()) return
     const id = e.currentTarget.dataset.id
     const todos = store.loadTodos()
     const todo = todos.find((t) => String(t.id) === String(id))
@@ -374,6 +411,7 @@ Page({
   },
 
   editTodo(e) {
+    if (this.tapBlocked()) return
     const id = e.currentTarget.dataset.id
     const todos = store.loadTodos()
     const todo = todos.find((t) => String(t.id) === String(id))
@@ -478,6 +516,241 @@ Page({
     store.saveTodos(todos)
     sound.play('add')
     this.refresh()
+  },
+
+  /* ── 批量合并（合并按钮 → 勾选 → 完成 → 命名） ── */
+
+  /* 分页行最左那个按钮：普通模式是「合并」，进入合并模式后变成「完成」。
+   * 进模式前先把当前视图状态（筛选/搜索/页码）记下来，点「取消」时原样还回去。 */
+  mergeAction() {
+    if (!this.data.mergeMode) {
+      this.mergeBefore = {
+        filter: view.filter,
+        priority: view.priority,
+        urgency: view.urgency,
+        search: view.search,
+        page: view.page,
+      }
+      this.picked = {}
+      this.setData({ mergeMode: true, pickedIds: {}, pickedCount: 0 })
+      return
+    }
+    const ids = Object.keys(this.picked || {})
+    if (ids.length < 2) {
+      wx.showToast({ title: '至少选两个任务才能合并', icon: 'none' })
+      return
+    }
+    this.openGroupDialog(ids)
+  },
+
+  // 取消合并：完全恢复到点「合并」之前的样子（筛选/搜索/页码都还原，勾选清空）
+  cancelMerge() {
+    const before = this.mergeBefore || {}
+    view.filter = before.filter == null ? 'all' : before.filter
+    view.priority = before.priority == null ? 'all' : before.priority
+    view.urgency = before.urgency == null ? 'all' : before.urgency
+    view.search = before.search == null ? '' : before.search
+    view.page = before.page == null ? 1 : before.page
+    this.picked = {}
+    this.pendingMergeIds = null
+    this.mergeBefore = null
+    this.setData({ mergeMode: false, pickedIds: {}, pickedCount: 0 })
+    this.refresh()
+  },
+
+  /* 左侧勾选框：普通模式 = 完成/取消完成；合并模式 = 要不要加入新组。
+   * 合并模式下**绝不能**碰任务的 done —— 那样就不是"选择"了。 */
+  onCheckTap(e) {
+    if (this.tapBlocked()) return
+    if (!this.data.mergeMode) return this.toggleTodo(e)
+    const id = String(e.currentTarget.dataset.id)
+    if (this.picked && this.picked[id]) delete this.picked[id]
+    else {
+      if (!this.picked) this.picked = {}
+      this.picked[id] = true
+    }
+    const pickedIds = Object.assign({}, this.picked)
+    this.setData({ pickedIds, pickedCount: Object.keys(pickedIds).length })
+    sound.play('priority')
+  },
+
+  /* ── 新建任务组的命名弹窗 ── */
+
+  openGroupDialog(taskIds) {
+    // 默认名实时算：取最小的、当前没被占用的「任务组N」
+    const fallback = core.nextGroupName(store.loadGroups())
+    this.pendingMergeIds = (taskIds || []).slice()
+    this.groupNameText = ''
+    this.setData({
+      groupDialog: true,
+      groupName: '',
+      groupPlaceholder: `直接确认默认为${fallback}`,
+    })
+  },
+
+  onGroupNameInput(e) {
+    // 同任务名输入框：输入过程不逐字 setData，值先存在实例上
+    this.groupNameText = String(e.detail.value == null ? '' : e.detail.value)
+  },
+
+  closeGroupDialog() {
+    // 只关弹窗：合并模式还留着，可以继续调整选择；要退出合并模式请点「取消」
+    this.setData({ groupDialog: false })
+  },
+
+  confirmGroupDialog() {
+    const ids = this.pendingMergeIds || []
+    if (ids.length < 2) {
+      this.setData({ groupDialog: false })
+      return
+    }
+    const typed = String(this.groupNameText == null ? '' : this.groupNameText).trim()
+    // 没输就按默认名（用户要求：直接确认 = 任务组N）
+    const name = typed || core.nextGroupName(store.loadGroups())
+    this.groupNameText = ''
+    this.pendingMergeIds = null
+    undo.push() // 合并会同时改「组」和「任务的 groupId」，必须先记一步撤回
+    store.createGroup(name, ids)
+    this.picked = {}
+    this.mergeBefore = null
+    view.page = 1
+    sound.play('add')
+    this.setData({ groupDialog: false, mergeMode: false, pickedIds: {}, pickedCount: 0 })
+    this.refresh()
+    wx.showToast({ title: `已合并为「${name}」`, icon: 'none' })
+  },
+
+  /* ── 任务组：进组 / 解散 ── */
+
+  openGroup(e) {
+    if (this.tapBlocked()) return
+    const id = e.currentTarget.dataset.id
+    if (id == null) return
+    wx.navigateTo({ url: `/pages/group/group?id=${id}` })
+  },
+
+  // 解散任务组：组内任务**一起进回收站**（用户选择），属于批量操作所以要二次确认
+  removeGroup(e) {
+    if (this.tapBlocked()) return
+    const id = e.currentTarget.dataset.id
+    const group = store.findGroup(id)
+    if (!group) return
+    const members = store.loadGroupTodos(group.id)
+    wx.showModal({
+      title: '删除任务组',
+      content: members.length
+        ? `「${group.name}」里的 ${members.length} 个任务会一起移入历史记录，可随时恢复。`
+        : `「${group.name}」是空的，删除后不可恢复。`,
+      confirmText: '删除',
+      success: (res) => {
+        if (!res.confirm) return
+        undo.push()
+        const ids = {}
+        members.forEach((t) => { ids[String(t.id)] = true })
+        if (members.length) store.pushToHistory(members)
+        if (members.length) store.saveTodos(store.loadTodos().filter((t) => !ids[String(t.id)]))
+        store.saveGroups(store.loadGroups().filter((g) => String(g.id) !== String(group.id)))
+        sound.play('delete')
+        this.refresh()
+      },
+    })
+  },
+
+  /* ── 拖动任务去合并（按住不放 → 拖到另一个任务或任务组上松手） ── */
+
+  // 拖拽刚结束时别把随后的点击当成普通点击（避免误触发改名 / 完成 / 改等级）
+  tapBlocked() {
+    return !!(this.suppressTapUntil && Date.now() < this.suppressTapUntil)
+  },
+
+  /* 量一次所有行的位置（视口坐标），拖动时用它判断手指压在哪一行上。
+   * 视口坐标和 touch 的 clientY 是同一套，可以直接比。 */
+  measureRows() {
+    const query = wx.createSelectorQuery()
+    query.selectAll('.item').boundingClientRect()
+    query.exec((res) => {
+      this.rowRects = (res && res[0]) || []
+    })
+  },
+
+  onItemLongPress(e) {
+    if (this.data.mergeMode) return // 合并模式下用勾选，不用拖
+    const id = String(e.currentTarget.dataset.id)
+    const row = (this.data.items || []).find((x) => String(x.id) === id)
+    if (!row || row.kind === 'group') return // 任务组本身不能拖（它就是文件夹）
+    this.dragId = id
+    this.dragMoved = false
+    this.dragOver = null
+    this.measureRows()
+    // 每 300ms 重量一次：万一页面被拖动带得滚动了一点，落点也不会算错
+    if (this.dragTimer) clearInterval(this.dragTimer)
+    this.dragTimer = setInterval(() => {
+      if (this.data.dragging) this.measureRows()
+    }, 300)
+    this.setData({ dragging: true, dragText: row.text, dragY: 0, dragId: id, dragOverId: '' })
+  },
+
+  // 手指压在 y 这一行的哪一行上？返回 { id, kind }（排除被拖的那行本身）
+  rowAtPoint(y) {
+    const rects = this.rowRects || []
+    const items = this.data.items || []
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i]
+      if (!r) continue
+      if (y >= r.top && y <= r.bottom) {
+        const row = items[i]
+        if (!row || String(row.id) === this.dragId) return null
+        return { id: String(row.id), kind: row.kind }
+      }
+    }
+    return null
+  },
+
+  onItemTouchMove(e) {
+    if (!this.data.dragging) return
+    const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0])
+    if (!t) return
+    this.dragMoved = true
+    const y = Math.round(t.clientY)
+    const over = this.rowAtPoint(y)
+    this.dragOver = over
+    const overId = over ? over.id : ''
+    const patch = { dragY: Math.max(0, y - 34) }
+    if (overId !== this.data.dragOverId) patch.dragOverId = overId
+    this.setData(patch)
+  },
+
+  onItemTouchEnd() {
+    if (!this.data.dragging) return
+    const over = this.dragOver
+    const dragId = this.dragId
+    this.dragId = null
+    this.dragOver = null
+    this.dragMoved = false
+    this.rowRects = null
+    if (this.dragTimer) {
+      clearInterval(this.dragTimer)
+      this.dragTimer = null
+    }
+    // 拖完这 300ms 内屏蔽行的点击
+    this.suppressTapUntil = Date.now() + 300
+    this.setData({ dragging: false, dragText: '', dragId: '', dragOverId: '' })
+    if (!over || !over.id || !dragId) return
+
+    if (over.kind === 'group') {
+      // 落在任务组上：直接加入那个组（组名已经有了，不用再问）
+      const group = store.findGroup(over.id)
+      if (!group) return
+      undo.push()
+      store.addTasksToGroup(group.id, [dragId])
+      sound.play('add')
+      this.refresh()
+      wx.showToast({ title: `已加入「${group.name}」`, icon: 'none' })
+      return
+    }
+    if (String(over.id) === String(dragId)) return
+    // 落在另一个任务上：合成一个新组，让用户起名
+    this.openGroupDialog([String(dragId), String(over.id)])
   },
 
   /* ── 撤回 / 取消撤回 ── */

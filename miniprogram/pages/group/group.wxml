@@ -1,0 +1,260 @@
+<view class="app" style="{{themeStyle}}">
+  <!-- 这里是「任务组」的子页面：输入框问的是"还要做什么"，新任务直接落进这个组。
+       同样用 textarea（避开部分安卓输入法在 input 里打英文时候选词条闪的问题）。 -->
+  <view class="form">
+    <textarea
+      class="form-input"
+      value="{{inputValue}}"
+      placeholder="还要做什么？"
+      maxlength="200"
+      auto-height="{{true}}"
+      disable-default-padding="{{true}}"
+      confirm-type="done"
+      confirm-hold="{{true}}"
+      hold-keyboard="{{true}}"
+      cursor-spacing="24"
+      focus="{{inputFocus}}"
+      bindinput="onInput"
+      bindconfirm="addTodo"
+      bindblur="onInputBlur"
+    />
+    <view class="form-btn" bindtap="addTodo">➕ 添加</view>
+  </view>
+
+  <!-- 只有两个等级按钮：任务组里没有设置、也没有历史记录 -->
+  <view class="priority-row">
+    <view class="priority-row-left">
+      <view class="level-pick" bindtap="cycleWeight" aria-label="轻重">
+        <view class="badge priority-{{priority}}">{{weightLabel}}</view>
+      </view>
+      <view class="level-pick" bindtap="cycleUrgency" aria-label="缓急">
+        <view class="urgency-icon urgency-{{urgency}}"></view>
+      </view>
+    </view>
+  </view>
+
+  <view class="search">
+    <text class="search-icon">🔍</text>
+    <textarea
+      class="search-input"
+      value="{{search}}"
+      placeholder="搜索本组的任务"
+      auto-height="{{true}}"
+      disable-default-padding="{{true}}"
+      confirm-type="search"
+      bindinput="onSearch"
+    />
+    <view wx:if="{{search}}" class="search-clear" bindtap="clearSearch">✕</view>
+  </view>
+  <view wx:if="{{hint}}" class="search-hint {{hintNoMatch ? 'no-match' : ''}}">{{hint}}</view>
+
+  <!-- 工具栏：排序 / 轻重 / 缓急 三个下拉 + 撤回箭头（与主列表同一套） -->
+  <block wx:if="{{total > 0 || canUndo || canRedo}}">
+    <view class="list-toolbar {{total > 0 ? '' : 'solo'}}">
+      <view class="toolbar-top">
+        <view class="toolbar-menus">
+          <view wx:if="{{total > 0}}" class="menu-wrap">
+            <view
+              class="menu-btn {{sort !== 'default' ? 'on' : ''}} {{openMenu === 'sort' ? 'open' : ''}}"
+              bindtap="toggleMenu"
+              data-menu="sort"
+              aria-label="排序"
+            >
+              <text class="menu-btn-label">⇅ {{sortLabel}}</text>
+              <text class="menu-caret">▾</text>
+            </view>
+            <view wx:if="{{openMenu === 'sort'}}" class="menu-pop">
+              <view
+                wx:for="{{sortOrder}}"
+                wx:key="*this"
+                class="menu-item {{sort === item ? 'picked' : ''}}"
+                data-menu="sort"
+                data-sort="{{item}}"
+                bindtap="pickSort"
+                hover-class="menu-item-hover"
+              >
+                <text class="menu-item-text">{{sortLabels[item]}}</text>
+                <text class="menu-check">{{sort === item ? '✓' : ''}}</text>
+              </view>
+            </view>
+          </view>
+
+          <view wx:if="{{total > 0}}" class="menu-wrap">
+            <view
+              class="menu-btn {{priorityFilter !== 'all' ? 'on' : ''}} {{openMenu === 'weight' ? 'open' : ''}}"
+              bindtap="toggleMenu"
+              data-menu="weight"
+              aria-label="轻重筛选"
+            >
+              <view class="menu-dot priority-{{priorityFilter}}"></view>
+              <text class="menu-btn-label">轻重</text>
+              <text class="menu-caret">▾</text>
+            </view>
+            <view wx:if="{{openMenu === 'weight'}}" class="menu-pop">
+              <view
+                wx:for="{{levelFilterOrder}}"
+                wx:key="*this"
+                class="menu-item {{priorityFilter === item ? 'picked' : ''}}"
+                data-menu="weight"
+                data-level="{{item}}"
+                bindtap="pickLevelFilter"
+                hover-class="menu-item-hover"
+              >
+                <view class="menu-dot priority-{{item}}"></view>
+                <text class="menu-item-text">{{weightFilterLabels[item]}}</text>
+                <text class="menu-check">{{priorityFilter === item ? '✓' : ''}}</text>
+              </view>
+            </view>
+          </view>
+
+          <view wx:if="{{total > 0}}" class="menu-wrap">
+            <view
+              class="menu-btn {{urgencyFilter !== 'all' ? 'on' : ''}} {{openMenu === 'urgency' ? 'open' : ''}}"
+              bindtap="toggleMenu"
+              data-menu="urgency"
+              aria-label="缓急筛选"
+            >
+              <view class="menu-dot priority-{{urgencyFilter}}"></view>
+              <text class="menu-btn-label">缓急</text>
+              <text class="menu-caret">▾</text>
+            </view>
+            <view wx:if="{{openMenu === 'urgency'}}" class="menu-pop">
+              <view
+                wx:for="{{levelFilterOrder}}"
+                wx:key="*this"
+                class="menu-item {{urgencyFilter === item ? 'picked' : ''}}"
+                data-menu="urgency"
+                data-level="{{item}}"
+                bindtap="pickLevelFilter"
+                hover-class="menu-item-hover"
+              >
+                <view class="menu-dot priority-{{item}}"></view>
+                <text class="menu-item-text">{{urgencyFilterLabels[item]}}</text>
+                <text class="menu-check">{{urgencyFilter === item ? '✓' : ''}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view class="undo-group">
+          <view class="undo-btn {{canUndo ? '' : 'disabled'}}" bindtap="undoAction" aria-label="撤回">↶</view>
+          <view class="undo-btn {{canRedo ? '' : 'disabled'}}" bindtap="redoAction" aria-label="取消撤回">↷</view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{total > 0}}">
+    <view class="action-row">
+      <view class="action-btn {{filter === 'all' ? 'filter-active' : ''}}" data-filter="all" bindtap="setFilter">全部</view>
+      <view class="action-btn complete" bindtap="completeAll">{{completeAllLabel}}</view>
+      <view class="action-btn {{filter === 'done' ? 'filter-active' : ''}}" data-filter="done" bindtap="setFilter">已完成 ({{completed}})</view>
+      <view class="action-btn {{filter === 'active' ? 'filter-active' : ''}}" data-filter="active" bindtap="setFilter">未完成 ({{incomplete}})</view>
+    </view>
+  </block>
+
+  <view class="list">
+    <block wx:if="{{items.length > 0}}">
+      <view
+        wx:for="{{items}}"
+        wx:key="id"
+        class="item priority-{{item.priority}} {{item.done ? 'done' : ''}}"
+      >
+        <view class="check {{item.done ? 'checked' : ''}}" data-id="{{item.id}}" bindtap="toggleTodo">✓</view>
+        <view class="item-text" data-id="{{item.id}}" bindtap="editTodo">
+          <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
+        </view>
+        <view class="badge-hit" data-id="{{item.id}}" bindtap="openLevelDialog" aria-label="轻重">
+          <view class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
+        </view>
+        <view class="urgency-hit" data-id="{{item.id}}" bindtap="openLevelDialog" aria-label="缓急">
+          <view class="urgency-icon urgency-{{item.urgency}}"></view>
+        </view>
+        <view wx:if="{{item.dateText}}" class="item-date">{{item.dateText}}</view>
+        <view class="item-op del" data-id="{{item.id}}" bindtap="deleteTodo">✕</view>
+      </view>
+    </block>
+    <view wx:else class="empty">
+      <view class="empty-icon">{{emptyIcon}}</view>
+      <view class="empty-title">{{emptyTitle}}</view>
+      <view class="empty-desc">{{emptyDesc}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{visibleCount > 5}}" class="pagination">
+    <view class="page-btn {{page <= 1 ? 'disabled' : ''}}" bindtap="prevPage">‹ 上一页</view>
+    <text class="page-indicator tappable" bindtap="editPage">第 {{page}} / {{totalPages}} 页</text>
+    <view class="page-btn {{page >= totalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页 ›</view>
+  </view>
+
+  <!-- 组内只有这两个清空动作（没有清空全部 / 完成所有并清空 / 合并） -->
+  <block wx:if="{{total > 0}}">
+    <view class="action-row action-row-bottom">
+      <view class="action-btn {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成{{completed > 0 ? ' (' + completed + ')' : ''}}</view>
+      <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
+    </view>
+  </block>
+
+  <!-- 下拉菜单的透明蒙层：点别处收起 -->
+  <view wx:if="{{openMenu}}" class="menu-mask" catchtap="closeMenu"></view>
+
+  <!-- 改等级弹窗：一个弹窗两行（轻重 / 缓急） -->
+  <view wx:if="{{levelDialog}}" class="page-dialog">
+    <view class="page-dialog-card">
+      <view class="page-dialog-title">修改等级</view>
+      <view class="level-dialog-row">
+        <text class="priority-label">轻重</text>
+        <view
+          wx:for="{{levelOrder}}"
+          wx:key="*this"
+          class="priority-option priority-{{item}} {{levelPick.priority === item ? 'selected' : ''}}"
+          data-kind="priority"
+          data-level="{{item}}"
+          bindtap="pickLevel"
+        >{{weightLabels[item]}}</view>
+      </view>
+      <view class="level-dialog-row">
+        <text class="priority-label">缓急</text>
+        <view
+          wx:for="{{levelOrder}}"
+          wx:key="*this"
+          class="priority-option priority-{{item}} {{levelPick.urgency === item ? 'selected' : ''}}"
+          data-kind="urgency"
+          data-level="{{item}}"
+          bindtap="pickLevel"
+        >{{urgencyLabels[item]}}</view>
+      </view>
+      <view class="page-dialog-actions">
+        <view class="page-dialog-btn" bindtap="closeLevelDialog">取消</view>
+        <view class="page-dialog-btn primary" bindtap="confirmLevelDialog">确定</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 页码跳转弹窗：输入框是数字键盘（input type="number" 才能指定键盘类型） -->
+  <view wx:if="{{pageDialog}}" class="page-dialog" style="padding-bottom: {{pageKeyHeight}}px">
+    <view class="page-dialog-card">
+      <view class="page-dialog-title">跳转到第几页</view>
+      <input
+        class="page-dialog-input"
+        type="number"
+        maxlength="6"
+        value="{{pageInput}}"
+        placeholder="输入 1 ~ {{pageTotal}}"
+        disable-default-padding="{{true}}"
+        focus="{{true}}"
+        auto-focus="{{true}}"
+        adjust-position="{{false}}"
+        confirm-type="go"
+        bindinput="onPageDialogInput"
+        bindconfirm="confirmPageDialog"
+        bindfocus="onPageDialogKeyboard"
+        bindkeyboardheightchange="onPageDialogKeyboard"
+      />
+      <view class="page-dialog-actions">
+        <view class="page-dialog-btn" bindtap="closePageDialog">取消</view>
+        <view class="page-dialog-btn primary" bindtap="confirmPageDialog">确定</view>
+      </view>
+    </view>
+  </view>
+</view>

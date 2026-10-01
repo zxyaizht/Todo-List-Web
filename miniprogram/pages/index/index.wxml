@@ -1,3 +1,7 @@
+<!-- 拖动任务时临时禁止页面滚动（手指在行上滑动不能被当成页面滚动）。
+     page-meta 必须是页面里第一个节点，且只能有一个。 -->
+<page-meta page-style="{{dragging ? 'overflow: hidden;' : ''}}"></page-meta>
+
 <view class="app" style="{{themeStyle}}">
   <!-- 这里用 textarea 而不是 input：部分安卓输入法在 <input> 里输入英文时，
        键盘上方的候选词条会"打一个字母闪一下"（微信官方已知问题），换成 textarea 就没有。
@@ -158,6 +162,9 @@
     </view>
   </block>
 
+  <!-- 拖动合并时跟随手指的小浮标（整行宽度、跟着 Y 走，像拎起一张卡片） -->
+  <view wx:if="{{dragging}}" class="drag-ghost" style="top: {{dragY}}px">{{dragText}}</view>
+
   <!-- 下拉菜单的透明蒙层：点别处收起 -->
   <view wx:if="{{openMenu}}" class="menu-mask" catchtap="closeMenu"></view>
 
@@ -176,25 +183,38 @@
     <block wx:if="{{items.length > 0}}">
       <view
         wx:for="{{items}}"
-        wx:key="id"
-        class="item priority-{{item.priority}} {{item.done ? 'done' : ''}}"
+        wx:key="key"
+        class="item {{item.rowClass}}{{mergeMode && item.kind === 'todo' ? ' merge-pick' : ''}}{{pickedIds[item.id] ? ' merge-picked' : ''}}{{dragging && item.kind === 'todo' && item.id == dragId ? ' dragging' : ''}}{{dragOverId && item.id == dragOverId ? ' drag-over' : ''}}"
+        data-id="{{item.id}}"
+        bindlongpress="onItemLongPress"
+        bindtouchmove="onItemTouchMove"
+        bindtouchend="onItemTouchEnd"
       >
-        <view class="check {{item.done ? 'checked' : ''}}" data-id="{{item.id}}" bindtap="toggleTodo">✓</view>
-        <view class="item-text" data-id="{{item.id}}" bindtap="editTodo">
-          <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
-        </view>
-        <!-- 轻重（重要性）圆形 + 缓急（紧急性）沙漏，都放在任务名右边、日期左边：
-             一是两个等级成组好认，二是离左边的完成按钮远一点，点完成时不会误触到它。
-             各自套一层只为把点按区域放大（44rpx / 34rpx 都太小），
-             负 margin 把多出来的内边距抵消掉，视觉位置不变。两个都点开同一个改等级弹窗。 -->
-        <view class="badge-hit" data-id="{{item.id}}" bindtap="openLevelDialog" aria-label="轻重">
-          <view class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
-        </view>
-        <view class="urgency-hit" data-id="{{item.id}}" bindtap="openLevelDialog" aria-label="缓急">
-          <view class="urgency-icon urgency-{{item.urgency}}"></view>
-        </view>
-        <view wx:if="{{item.dateText}}" class="item-date">{{item.dateText}}</view>
-        <view class="item-op del" data-id="{{item.id}}" bindtap="deleteTodo">✕</view>
+        <!-- 任务组：左边一个 90° 右箭头，点箭头或组名进组里 -->
+        <block wx:if="{{item.kind === 'group'}}">
+          <view class="group-arrow" data-id="{{item.id}}" bindtap="openGroup" aria-label="打开任务组">›</view>
+          <view class="item-text group-name" data-id="{{item.id}}" bindtap="openGroup">
+            <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
+          </view>
+          <view class="group-count">{{item.count}} 项</view>
+          <view class="item-op del" data-id="{{item.id}}" bindtap="removeGroup">✕</view>
+        </block>
+
+        <!-- 普通任务 -->
+        <block wx:else>
+          <view class="check {{mergeMode ? ('picking' + (pickedIds[item.id] ? ' picked' : '')) : (item.done ? 'checked' : '')}}" data-id="{{item.id}}" bindtap="onCheckTap">✓</view>
+          <view class="item-text" data-id="{{item.id}}" bindtap="editTodo">
+            <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
+          </view>
+          <view class="badge-hit" data-id="{{item.id}}" bindtap="openLevelDialog" aria-label="轻重">
+            <view class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
+          </view>
+          <view class="urgency-hit" data-id="{{item.id}}" bindtap="openLevelDialog" aria-label="缓急">
+            <view class="urgency-icon urgency-{{item.urgency}}"></view>
+          </view>
+          <view wx:if="{{item.dateText}}" class="item-date">{{item.dateText}}</view>
+          <view class="item-op del" data-id="{{item.id}}" bindtap="deleteTodo">✕</view>
+        </block>
       </view>
     </block>
     <view wx:else class="empty">
@@ -204,11 +224,18 @@
     </view>
   </view>
 
-  <!-- 分页 -->
-  <view wx:if="{{visibleCount > 5}}" class="pagination">
-    <view class="page-btn {{page <= 1 ? 'disabled' : ''}}" bindtap="prevPage">‹ 上一页</view>
-    <text class="page-indicator tappable" bindtap="editPage">第 {{page}} / {{totalPages}} 页</text>
-    <view class="page-btn {{page >= totalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页 ›</view>
+  <!-- 分页行：最左边是「合并」（用户要求的位置），进入合并模式后它变成「完成」、最右出现「取消」。
+       整行在 total > 0 时就渲染 —— 否则只有一页时分页行不显示，「合并」就点不到了。 -->
+  <view wx:if="{{total > 0}}" class="pagination pagination-merge">
+    <view class="merge-btn {{mergeMode ? 'done' : ''}}" bindtap="mergeAction">{{mergeMode ? '完成' + (pickedCount > 0 ? ' (' + pickedCount + ')' : '') : '合并'}}</view>
+    <view class="pagination-pages">
+      <block wx:if="{{visibleCount > 5}}">
+        <view class="page-btn {{page <= 1 ? 'disabled' : ''}}" bindtap="prevPage">‹ 上一页</view>
+        <text class="page-indicator tappable" bindtap="editPage">第 {{page}} / {{totalPages}} 页</text>
+        <view class="page-btn {{page >= totalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页 ›</view>
+      </block>
+    </view>
+    <view wx:if="{{mergeMode}}" class="merge-btn cancel" bindtap="cancelMerge">取消</view>
   </view>
 
   <!-- 操作行（第二行）：清空类 4 个。用户要求与任务清单上下对调，所以放到清单下方；
@@ -218,6 +245,37 @@
     <view class="action-btn" bindtap="completeClear">✅ 完成所有并清空</view>
     <view class="action-btn {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成{{completed > 0 ? ' (' + completed + ')' : ''}}</view>
     <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
+  </view>
+
+  <!-- 新建任务组：给合并出来的组起名。打开就自动聚焦（键盘直接弹出来），
+       什么都不输直接点确定就用默认名（placeholder 里实时算出「任务组N」）。
+       键盘高度的处理复用跳页弹窗那套（pageKeyHeight + onPageDialogKeyboard）。 -->
+  <view wx:if="{{groupDialog}}" class="page-dialog" style="padding-bottom: {{pageKeyHeight}}px">
+    <view class="page-dialog-card">
+      <view class="page-dialog-title">给任务组起个名字</view>
+      <textarea
+        class="page-dialog-input group-name-input"
+        value="{{groupName}}"
+        placeholder="{{groupPlaceholder}}"
+        maxlength="30"
+        auto-height="{{true}}"
+        disable-default-padding="{{true}}"
+        fixed="{{true}}"
+        focus="{{true}}"
+        auto-focus="{{true}}"
+        adjust-position="{{false}}"
+        confirm-type="done"
+        cursor-spacing="24"
+        bindinput="onGroupNameInput"
+        bindconfirm="confirmGroupDialog"
+        bindfocus="onPageDialogKeyboard"
+        bindkeyboardheightchange="onPageDialogKeyboard"
+      />
+      <view class="page-dialog-actions">
+        <view class="page-dialog-btn" bindtap="closeGroupDialog">取消</view>
+        <view class="page-dialog-btn primary" bindtap="confirmGroupDialog">确定</view>
+      </view>
+    </view>
   </view>
 
   <!-- 改等级弹窗：一个弹窗两行（轻重 / 缓急），点任务上的圆形或沙漏都打开它。
