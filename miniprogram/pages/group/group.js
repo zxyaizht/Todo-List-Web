@@ -145,8 +145,10 @@ Page({
     if (this.groupId == null) return
     // 只取本组的任务；但所有写操作都回到整份清单上（见文件头注释）
     const todos = store.loadGroupTodos(this.groupId)
-    const completed = todos.filter((t) => t.done).length
-    const incomplete = todos.length - completed
+    // 计数按**当前等级筛选范围**算（与主列表同一套规则，见 core.countByLevelScope）
+    const counts = core.countByLevelScope(todos, view.priority, view.urgency)
+    const completed = counts.completed
+    const incomplete = counts.incomplete
     const pageInfo = core.getPageItems(todos, view)
     const visible = pageInfo.visible
     view.page = pageInfo.page
@@ -329,10 +331,13 @@ Page({
     })
   },
 
-  /* 完成所有 / 取消所有：只作用于本组 */
+  /* 完成所有 / 取消所有：只作用于本组**且在当前等级筛选范围内**的任务 */
   completeAll() {
     const todos = store.loadTodos()
-    const mine = todos.filter((t) => String(t.groupId) === String(this.groupId))
+    const mine = core.getFilteredItems(
+      todos.filter((t) => String(t.groupId) === String(this.groupId)),
+      'all', view.priority, view.urgency
+    )
     const target = mine.some((t) => !t.done)
     if (!mine.some((t) => t.done !== target)) return
     undo.push()
@@ -342,7 +347,7 @@ Page({
     this.refresh()
   },
 
-  /* 清空已完成 / 未完成：只动本组的，移入回收站（可恢复） */
+  /* 清空已完成 / 未完成：只动本组**且在当前等级筛选范围内**的，移入回收站（可恢复） */
   clearDone() {
     this.clearByDone(true)
   },
@@ -353,13 +358,17 @@ Page({
 
   clearByDone(isDone) {
     const todos = store.loadTodos()
-    const target = todos.filter((t) => String(t.groupId) === String(this.groupId) && !!t.done === isDone)
+    const mine = core.getFilteredItems(
+      todos.filter((t) => String(t.groupId) === String(this.groupId)),
+      'all', view.priority, view.urgency
+    )
+    const target = mine.filter((t) => !!t.done === isDone)
     if (!target.length) return
+    const scoped = core.hasLevelScope(view.priority, view.urgency)
+    const prefix = scoped ? '当前筛选范围内' : '本组'
     wx.showModal({
       title: isDone ? '确认清空已完成' : '确认清空未完成',
-      content: isDone
-        ? '本组已完成的任务将被移入历史记录，可随时恢复。'
-        : '本组未完成的任务将被移入历史记录，可随时恢复。',
+      content: `${prefix}${isDone ? '已完成' : '未完成'}的 ${target.length} 个任务将被移入历史记录，可随时恢复。`,
       confirmText: '清空',
       success: (res) => {
         if (!res.confirm) return

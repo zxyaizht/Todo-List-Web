@@ -101,8 +101,9 @@ Page({
 
   refresh() {
     const history = store.loadHistory()
-    // 计数用**全部记录**，不随优先级筛选变化：恢复 / 清空这些按钮的作用范围是整个回收站
-    const completed = history.filter((t) => t.done).length
+    // 计数按**当前等级筛选范围**算（与主列表同一套规则，见 core.countByLevelScope）
+    const counts = core.countByLevelScope(history, view.priority, view.urgency)
+    const completed = counts.completed
     // 一次拿到过滤结果 + 页码 + 当前页条目（分段只算当前页这几条）
     const pageInfo = core.getPageItems(history, view)
     const visible = pageInfo.visible
@@ -126,7 +127,7 @@ Page({
       items: pageItems.map((x) => decorate(x.todo, x.indices)),
       total: history.length,
       completed,
-      incomplete: history.length - completed,
+      incomplete: counts.incomplete,
       visibleCount: visible.length,
       totalPages: pageInfo.totalPages,
       page: view.page,
@@ -193,6 +194,12 @@ Page({
     }
   },
 
+  /* 回收站的批量恢复/清空：带「已完成/未完成」的那几个跟随等级筛选范围
+   * （与按钮上的数字同一范围）；带「全部」的（恢复全部 / 全部清空）保持全局语义。 */
+  scoped(predicate) {
+    return (t) => predicate(t) && core.inLevelScope(t, view.priority, view.urgency)
+  },
+
   restoreByFilter(predicate) {
     const history = store.loadHistory()
     const picked = history.filter(predicate)
@@ -205,11 +212,11 @@ Page({
   },
 
   restoreDone() {
-    this.restoreByFilter((t) => !!t.done)
+    this.restoreByFilter(this.scoped((t) => !!t.done))
   },
 
   restoreIncomplete() {
-    this.restoreByFilter((t) => !t.done)
+    this.restoreByFilter(this.scoped((t) => !t.done))
   },
 
   restoreAll() {
@@ -222,9 +229,11 @@ Page({
     const history = store.loadHistory()
     const picked = history.filter(predicate)
     if (!picked.length) return
+    // 筛了轻重/缓急时，确认提示里说明只清当前范围，避免误解成整站清空
+    const scoped = core.hasLevelScope(view.priority, view.urgency)
     wx.showModal({
       title,
-      content,
+      content: scoped ? `（只清当前筛选范围内的记录）${content}` : content,
       confirmText: '永久删除',
       success: (res) => {
         if (!res.confirm) return
@@ -237,11 +246,11 @@ Page({
   },
 
   clearDone() {
-    this.purgeByFilter((t) => !!t.done, '确认清空已完成', '将从回收站永久删除已完成的记录，无法恢复。')
+    this.purgeByFilter(this.scoped((t) => !!t.done), '确认清空已完成', '将从回收站永久删除已完成的记录，无法恢复。')
   },
 
   clearIncomplete() {
-    this.purgeByFilter((t) => !t.done, '确认清空未完成', '将从回收站永久删除未完成的记录，无法恢复。')
+    this.purgeByFilter(this.scoped((t) => !t.done), '确认清空未完成', '将从回收站永久删除未完成的记录，无法恢复。')
   },
 
   clearAll() {

@@ -178,13 +178,13 @@ Page({
   refresh() {
     const todos = store.loadTodos()
     const groups = store.loadGroups()
-    /* 计数一律用**全部任务**，不随优先级筛选变化。
-     * 这几个数字对应的是「清空已完成 / 清空未完成 / 完成所有 / 取消所有」这些**全局动作**：
-     * 作用范围必须和数字一致，否则一旦筛了优先级就会出现
-     * 「按钮写着取消所有、点下去却把别的优先级的任务也一起取消了」这种坑。
-     * 网页版同样是全量计数，这里与它保持一致。 */
-    const completed = todos.filter((t) => t.done).length
-    const incomplete = todos.length - completed
+    /* 计数按**当前等级筛选范围**算（用户要求：筛了轻重/缓急之后，那排按钮上的数字要跟着变）。
+     * 范围 = 「轻重 + 缓急」，不含完成状态筛选、也不含搜索（原因见 core.countByLevelScope 注释）。
+     * ⚠️ 这些数字对应的动作（完成所有/取消所有、清空已完成/未完成）必须用**同一个范围**执行，
+     * 否则就成了"按钮写着 3 个、点下去清掉 10 个"，所以下面那几个 handler 都先过一遍 scope。 */
+    const counts = core.countByLevelScope(todos, view.priority, view.urgency)
+    const completed = counts.completed
+    const incomplete = counts.incomplete
     // 列表行 = 任务组（永远排最前）+ 未分组任务；一次拿到过滤结果 + 页码 + 当前页那几行
     const pageInfo = core.getListPage(groups, todos, view)
     const visible = pageInfo.rows
@@ -509,10 +509,12 @@ Page({
    * 文案由 refresh() 根据 incomplete 算好放进 completeAllLabel。 */
   completeAll() {
     const todos = store.loadTodos()
-    const target = todos.some((t) => !t.done) // 有没完成的 → 目标是"全完成"，否则是"全取消"
-    if (!todos.some((t) => t.done !== target)) return // 已经是目标状态：不动，也不记撤回
+    // 只作用于**当前等级筛选范围内**的任务（与"完成所有 (N)"那个数字同范围）
+    const mine = core.getFilteredItems(todos, 'all', view.priority, view.urgency)
+    const target = mine.some((t) => !t.done) // 有没完成的 → 目标是"全完成"，否则是"全取消"
+    if (!mine.some((t) => t.done !== target)) return // 已经是目标状态：不动，也不记撤回
     undo.push()
-    todos.forEach((t) => { t.done = target })
+    mine.forEach((t) => { t.done = target })
     store.saveTodos(todos)
     sound.play('add')
     this.refresh()
@@ -775,36 +777,34 @@ Page({
     this.refresh()
   },
 
+  /* 清空已完成 / 清空未完成：只作用于**当前等级筛选范围内**的任务（与按钮上的数字同范围）。
+   * 筛了轻重/缓急时，确认提示里会写明"当前筛选范围内"，避免误解成清掉了全部。 */
   clearDone() {
-    if (this.data.completed === 0) return
-    wx.showModal({
-      title: '确认清空已完成',
-      content: '已完成的任务将被移入历史记录，可随时恢复。',
-      confirmText: '清空',
-      success: (res) => {
-        if (!res.confirm) return
-        undo.push()
-        const todos = store.loadTodos()
-        store.pushToHistory(todos.filter((t) => t.done))
-        store.saveTodos(todos.filter((t) => !t.done))
-        sound.play('clearDone')
-        this.refresh()
-      },
-    })
+    this.clearByDone(true)
   },
 
   clearIncomplete() {
-    if (this.data.incomplete === 0) return
+    this.clearByDone(false)
+  },
+
+  clearByDone(isDone) {
+    const todos = store.loadTodos()
+    const mine = core.getFilteredItems(todos, 'all', view.priority, view.urgency)
+    const target = mine.filter((t) => !!t.done === isDone)
+    if (!target.length) return
+    const scoped = core.hasLevelScope(view.priority, view.urgency)
+    const prefix = scoped ? '当前筛选范围内' : ''
     wx.showModal({
-      title: '确认清空未完成',
-      content: '未完成的任务将被移入历史记录，可随时恢复。',
+      title: isDone ? '确认清空已完成' : '确认清空未完成',
+      content: `${prefix}${isDone ? '已完成' : '未完成'}的 ${target.length} 个任务将被移入历史记录，可随时恢复。`,
       confirmText: '清空',
       success: (res) => {
         if (!res.confirm) return
         undo.push()
-        const todos = store.loadTodos()
-        store.pushToHistory(todos.filter((t) => !t.done))
-        store.saveTodos(todos.filter((t) => t.done))
+        const ids = {}
+        target.forEach((t) => { ids[String(t.id)] = true })
+        store.pushToHistory(target)
+        store.saveTodos(todos.filter((t) => !ids[String(t.id)]))
         sound.play('clearDone')
         this.refresh()
       },

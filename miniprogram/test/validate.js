@@ -417,12 +417,28 @@ check('排序按轻重、无排在最后', /const rankOf = \(t\) => LEVEL_RANK\[
 /* 「完成所有」在全完成后变成「取消所有」 */
 check('按钮文案由 completeAllLabel 决定', /class="action-btn complete" bindtap="completeAll">\{\{completeAllLabel\}\}/.test(indexWxmlInput))
 check('文案里有两个分支', indexJs.includes('✅ 完成所有 (${incomplete})') && indexJs.includes("'↩️ 取消所有'"))
-check('按"有没有未完成"决定方向', bodyOf(indexJs, 'completeAll').includes('const target = todos.some((t) => !t.done)'))
+check('按"有没有未完成"决定方向', bodyOf(indexJs, 'completeAll').includes('const target = mine.some((t) => !t.done)'))
 check('一次性把所有任务设成目标状态', bodyOf(indexJs, 'completeAll').includes('t.done = target'))
 check('已经是目标状态时不白记一步撤回', bodyOf(indexJs, 'completeAll').includes('return'))
 /* 计数必须是全量：否则筛了优先级会出现"按钮说取消所有、却把别的优先级也取消了" */
-check('主列表计数用全部任务（不随优先级筛选变化）', indexJs.includes('const completed = todos.filter((t) => t.done).length'))
-check('回收站计数也用全部记录', historyJs.includes('const completed = history.filter((t) => t.done).length'))
+/* 计数跟随等级筛选（2026-10-01 用户要求：筛了轻重/缓急后，按钮上的数字要跟着变），
+ * 而且**动作必须用同一个范围**执行，否则就成了"按钮写着 3 个、点下去清掉 10 个"。 */
+const countScopeOf = (src) => /countByLevelScope\([a-zA-Z]+, view\.priority, view\.urgency\)/.test(src)
+check('主列表计数跟随等级筛选', countScopeOf(indexJs))
+check('回收站计数跟随等级筛选', countScopeOf(historyJs))
+check('组内页面计数跟随等级筛选', countScopeOf(read(path.join(ROOT, 'pages', 'group', 'group.js'))))
+check('主列表的完成所有/取消所有也收在同一范围', /completeAll\(\)[\s\S]{0,400}?core\.getFilteredItems\(todos, 'all', view\.priority, view\.urgency\)/.test(indexJs))
+check('主列表的清空已完成/未完成也收在同一范围', /clearByDone\(isDone\)[\s\S]{0,600}?core\.getFilteredItems\(todos, 'all', view\.priority, view\.urgency\)/.test(indexJs)
+  && /clearByDone\(isDone\)[\s\S]{0,1200}?hasLevelScope\(view\.priority, view\.urgency\)/.test(indexJs))
+check('组内的清空也收在同一范围', /clearByDone\(isDone\)[\s\S]{0,700}?core\.getFilteredItems\(/.test(read(path.join(ROOT, 'pages', 'group', 'group.js'))))
+check('回收站的恢复已完成/未完成跟随范围（全部那两个保持全局）',
+  /restoreDone\(\)\s*\{\s*this\.restoreByFilter\(this\.scoped\(/.test(historyJs)
+  && /restoreAll\(\)\s*\{\s*this\.restoreByFilter\(\(\) => true\)/.test(historyJs))
+check('回收站的清空已完成/未完成跟随范围（全部清空保持全局）',
+  /clearDone\(\)\s*\{\s*this\.purgeByFilter\(this\.scoped\(/.test(historyJs)
+  && /clearAll\(\)\s*\{\s*this\.purgeByFilter\(\(\) => true/.test(historyJs))
+check('有色范围时确认提示会写明"当前筛选范围内"', indexJs.includes("const prefix = scoped ? '当前筛选范围内' : ''") && historyJs.includes('只清当前筛选范围内的记录'))
+check('计数范围不含完成状态筛选与搜索（core 注释里写死了）', coreJsSrc.includes('不**包含完成状态筛选') && coreJsSrc.includes('countByLevelScope'))
 
 /* 撤回 / 取消撤回 */
 const undoJs = read(path.join(ROOT, 'utils', 'undo.js'))
@@ -451,7 +467,9 @@ check('列表空时工具栏只剩箭头并居中', /class="list-toolbar \{\{tot
 check('工具行窄屏可换行（不挤压）', /\.list-toolbar\s*\{[\s\S]*?flex-wrap:\s*wrap/.test(appWxssInput))
 /* 每个"改数据"的操作都要先记一步 */
 ;[
-  ['index', ipage => read(path.join(ROOT, 'pages', 'index', 'index.js')), ['addTodo', 'toggleTodo', 'deleteTodo', 'editTodo', 'completeAll', 'clearDone', 'clearIncomplete', 'clearAll', 'completeClear', 'confirmLevelDialog']],
+  ['index', ipage => read(path.join(ROOT, 'pages', 'index', 'index.js')), ['addTodo', 'toggleTodo', 'deleteTodo', 'editTodo', 'completeAll', 'clearAll', 'completeClear', 'confirmLevelDialog']],
+  // 注意：clearByDone 在定义之前就被 clearDone / clearIncomplete 调用过，
+  // bodyOf 会取错函数体（它取的是"第一次出现"之后的第一对花括号）→ 单独用带参数的精确正则判
   ['history', () => historyJs, ['restoreOne', 'purgeOne', 'restoreByFilter', 'purgeByFilter']],
   ['settings', () => settingsJs, ['applyCustom', 'removeColor', 'clearAllColors']],
 ].forEach(([page, getSrc, fns]) => {
@@ -496,8 +514,10 @@ check('合成做了归一化（响度拉满）', read(path.join(ROOT, 'utils', '
 check('单个删除不弹确认框：index.deleteTodo', !bodyOf(indexJs, 'deleteTodo').includes('showModal'))
 check('单条彻底删除不弹确认框：history.purgeOne', !bodyOf(historyJs, 'purgeOne').includes('showModal'))
 check('删除单个颜色不弹确认框：settings.removeColor', !bodyOf(settingsJs, 'removeColor').includes('showModal'))
-check('清空已完成要确认：index.clearDone', bodyOf(indexJs, 'clearDone').includes('showModal'))
-check('清空未完成要确认：index.clearIncomplete', bodyOf(indexJs, 'clearIncomplete').includes('showModal'))
+check('清空已完成/未完成要确认、且改动前先记撤回：index.clearByDone',
+  /clearByDone\(isDone\)\s*\{[\s\S]{0,1400}?undo\.push\(\)/.test(indexJs)
+  && /clearByDone\(isDone\)\s*\{[\s\S]{0,900}?showModal/.test(indexJs))
+check('清空未完成走同一个 handler（用 isDone 区分）', /clearIncomplete\(\)\s*\{\s*this\.clearByDone\(false\)/.test(indexJs))
 check('清空全部要确认：index.clearAll', bodyOf(indexJs, 'clearAll').includes('showModal'))
 check('完成所有并清空要确认：index.completeClear', bodyOf(indexJs, 'completeClear').includes('showModal'))
 check('回收站批量清空的确认框在 purgeByFilter 里：history.purgeByFilter', bodyOf(historyJs, 'purgeByFilter').includes('showModal'))

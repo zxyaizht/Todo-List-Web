@@ -257,6 +257,29 @@ check('分页把任务组也算进行数', (() => {
   return info.visibleCount === 7 && info.totalPages === 2 && info.pageRows.length === 5 && info.pageRows[0].kind === 'group'
 })(), true)
 
+log('--- 计数范围：跟随等级筛选 ---')
+// 用户要求：筛了轻重/缓急之后，按钮上的数字要跟筛选后的任务匹配
+const cntTasks = [
+  { id: 1, text: 'A', done: true, priority: 'low', urgency: 'none', createdAt: now },
+  { id: 2, text: 'B', done: false, priority: 'low', urgency: 'high', createdAt: now },
+  { id: 3, text: 'C', done: false, priority: 'high', urgency: 'none', createdAt: now },
+  { id: 4, text: 'D', done: true, priority: 'high', urgency: 'none', createdAt: now },
+]
+check('不筛时 = 全量', core.countByLevelScope(cntTasks, 'all', 'all'), { completed: 2, incomplete: 2 })
+check('筛轻重=轻 → 只数轻的（1 完成 1 未完成）', core.countByLevelScope(cntTasks, 'low', 'all'), { completed: 1, incomplete: 1 })
+check('筛轻重=重 → 1 完成 1 未完成', core.countByLevelScope(cntTasks, 'high', 'all'), { completed: 1, incomplete: 1 })
+check('筛缓急=急 → 只有 B（未完成）', core.countByLevelScope(cntTasks, 'all', 'high'), { completed: 0, incomplete: 1 })
+check('筛缓急=无 → A/D 完成、C 未完成', core.countByLevelScope(cntTasks, 'all', 'none'), { completed: 2, incomplete: 1 })
+check('两个维度叠加会有交集', core.countByLevelScope(cntTasks, 'high', 'high'), { completed: 0, incomplete: 0 })
+check('这批任务里没有「轻重=无」的', core.countByLevelScope(cntTasks, 'none', 'all'), { completed: 0, incomplete: 0 })
+check('有没有生效的等级筛选', [core.hasLevelScope('all', 'all'), core.hasLevelScope('low', 'all'), core.hasLevelScope('all', 'high')], [false, true, true])
+check('单条是否在范围内', [
+  core.inLevelScope({ priority: 'low', urgency: 'high' }, 'low', 'all'),
+  core.inLevelScope({ priority: 'low', urgency: 'high' }, 'high', 'all'),
+  core.inLevelScope({ priority: 'low' }, 'all', 'none'),
+  core.inLevelScope(null, 'all', 'all'),
+], [true, false, true, false])
+
 log('')
 log(`通过 ${pass} 项，失败 ${fail} 项`)
 fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8')

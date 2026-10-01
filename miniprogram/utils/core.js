@@ -507,6 +507,32 @@ function parsePageInput(raw, totalPages) {
   return Math.min(total, n)
 }
 
+/* 按**等级筛选**算已完成 / 未完成的数量（2026-10-01 用户要求"数字要跟筛选后的任务匹配"）。
+ *
+ * 范围 = 「轻重 + 缓急」两个筛选，**不**包含完成状态筛选（否则筛「已完成」时未完成会变成 0，
+ * 两个按钮互相把对方归零，没有意义），也**不**包含搜索（边打字边跳数字会很晕）。
+ *
+ * ⚠️ 这几个数字对应的是「完成所有 / 取消所有」「清空已完成 / 未完成」这些**动作**，
+ * 所以动作必须用**同一个范围**去执行 —— 否则就会出现"按钮写着 3 个、点下去清掉 10 个"。 */
+function countByLevelScope(items, weight, urgency) {
+  const scoped = getFilteredItems(items, 'all', weight, urgency)
+  const completed = scoped.filter((t) => t.done).length
+  return { completed, incomplete: scoped.length - completed }
+}
+
+/* 等级筛选是否生效（三个页面用它决定按钮文案/确认提示要不要带"当前筛选范围内"） */
+function hasLevelScope(weight, urgency) {
+  return (weight && weight !== 'all') || (urgency && urgency !== 'all')
+}
+
+/* 单个条目是否落在当前等级筛选范围内（回收站的恢复/清空用它把动作收进同一范围） */
+function inLevelScope(t, weight, urgency) {
+  if (!t) return false
+  if (weight && weight !== 'all' && normalizeLevel(t.priority) !== weight) return false
+  if (urgency && urgency !== 'all' && normalizeLevel(t.urgency) !== urgency) return false
+  return true
+}
+
 /* ── 任务组（把多个任务装进一个"文件夹"） ── */
 
 /* 新建任务组时的默认名字：取最小的、当前**没被占用**的「任务组N」。
@@ -631,6 +657,10 @@ module.exports = {
   queryItems,
   getVisibleItems,
   getPageItems,
+  // 按等级筛选范围算已完成/未完成（按钮上的数字与动作都用它）
+  countByLevelScope,
+  hasLevelScope,
+  inLevelScope,
   // 任务组
   nextGroupName,
   buildListRows,
