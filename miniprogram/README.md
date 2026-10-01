@@ -129,6 +129,27 @@ miniprogram/
 （只读写自己沙箱里的合成音频）、`createSelectorQuery`、`getEnv`(`wx.env`)、`showModal` / `showToast`。
 另外 `wx.showActionSheet` **只在注释里出现过**（排序早已改成自绘下拉），没有调用。
 
+### 开发者工具控制台里那些告警不是本项目的（别去排查）
+
+用微信开发者工具打开本项目时，控制台常见这几条，**全部来自工具 / 基础库自身，不是应用代码**：
+
+- `[基础库] 正在使用灰度中的基础库 x.y.z 进行调试` —— 只是提示你在用灰度版基础库，
+  想稳就在「工具栏 → 详情 → 本地设置」切成**正式版**。
+- `The resource http://127.0.0.1:58020/__dev__/WAAutoService.js ... was preloaded using link preload`
+  —— 工具自己预加载运行时文件（`WAAutoService.js` / `WAIServiceMainContext.js`）的提示，与小程序无关。
+- `[渲染层错误] Listener added for a 'DOMNodeRemoved' mutation event. Support for this event type has
+  been removed` —— Chrome 已移除该事件，而**工具/基础库内部**还在监听。
+- `[worker] reportRealtimeAction:fail not support` —— 工具内部 worker 的实时上报特性，当前基础库不支持。
+
+判断标准很简单：**报错里有没有出现你自己的文件路径**（例如 `pages/index/index.js:413`）。
+上面这几条都没有，而且本项目的代码里：
+
+- 没有任何 DOM 操作 / `MutationObserver` / `addEventListener`（小程序里也没有 DOM）；
+- **零第三方依赖**（`package.json` 里没有 `dependencies`，也没有 `node_modules`）；
+- 用到的非内置标签只有 `<page-meta>`（拖动任务时锁页面滚动用，见任务组那节）。
+
+想清掉这些噪音，通常是**把调试基础库从灰度版切成正式版**。真机上不会出现这些渲染层告警。
+
 ## 已知限制
 
 - **中文拼音排序依赖运行时的 `Intl.Collator`**：Android 端（V8）实测可用；iOS 端是 JavaScriptCore，
