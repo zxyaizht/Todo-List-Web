@@ -1,14 +1,4 @@
 <view class="app" style="{{themeStyle}}">
-  <view class="header">
-    <view class="header-main">
-      <view class="header-title">📝 我的待办清单</view>
-      <view class="header-sub">记录你的每一项任务</view>
-    </view>
-    <!-- 齿轮放在页面内容的右上角：小程序的胶囊按钮在导航栏里，
-         页面内容本就在导航栏下方，这里再留出间距，避免误触 -->
-    <view class="settings-gear" bindtap="goSettings" aria-label="设置">⚙️</view>
-  </view>
-
   <!-- 这里用 textarea 而不是 input：部分安卓输入法在 <input> 里输入英文时，
        键盘上方的候选词条会"打一个字母闪一下"（微信官方已知问题），换成 textarea 就没有。
        auto-height 让它平时就是单行高度，任务名很长时才自动长高。 -->
@@ -32,17 +22,20 @@
     <view class="form-btn" bindtap="addTodo">➕ 添加</view>
   </view>
 
-  <!-- 优先级与历史记录并排一行，整体更紧凑 -->
+  <!-- 齿轮 + 优先级 + 历史记录同一行：顶部标题栏已去掉，齿轮从右上角挪到「优先级」左边 -->
   <view class="priority-row">
-    <view class="priority-select">
-      <text class="priority-label">优先级</text>
-      <view
-        wx:for="{{priorityOrder}}"
-        wx:key="*this"
-        class="priority-option priority-{{item}} {{priority === item ? 'selected' : ''}}"
-        data-priority="{{item}}"
-        bindtap="pickPriority"
-      >{{priorityLabels[item]}}</view>
+    <view class="priority-row-left">
+      <view class="settings-gear" bindtap="goSettings" aria-label="设置">⚙️</view>
+      <view class="priority-select">
+        <text class="priority-label">优先级</text>
+        <view
+          wx:for="{{priorityOrder}}"
+          wx:key="*this"
+          class="priority-option priority-{{item}} {{priority === item ? 'selected' : ''}}"
+          data-priority="{{item}}"
+          bindtap="pickPriority"
+        >{{priorityLabels[item]}}</view>
+      </view>
     </view>
     <view class="history-btn" bindtap="goHistory">🕘 历史记录{{historyCount > 0 ? ' (' + historyCount + ')' : ''}}</view>
   </view>

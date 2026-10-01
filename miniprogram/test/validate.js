@@ -384,13 +384,23 @@ check('工具行窄屏可换行（不挤压）', /\.list-toolbar\s*\{[\s\S]*?fle
 /* 选优先级时不该收起键盘 */
 check('输入框保持键盘（hold-keyboard）', /hold-keyboard="\{\{true\}\}"/.test(indexWxml))
 
-/* 界面调整：齿轮在右上角、历史记录与优先级同行、操作按钮文字换行 */
+/* 界面调整：顶部标题栏去掉、齿轮挪到优先级左边、操作按钮文字换行 */
 const indexWxmlUi = read(path.join(ROOT, 'pages', 'index', 'index.wxml'))
 const appWxssUi = read(path.join(ROOT, 'app.wxss'))
 const indexWxssUi = read(path.join(ROOT, 'pages', 'index', 'index.wxss'))
-check('设置已改为右上角齿轮', /class="settings-gear"/.test(indexWxmlUi) && /\.settings-gear\s*\{/.test(indexWxssUi))
+check('设置齿轮存在且已样式化', /class="settings-gear"/.test(indexWxmlUi) && /\.settings-gear\s*\{/.test(indexWxssUi))
 check('齿轮仍绑定 goSettings', /class="settings-gear"[^>]*bindtap="goSettings"/.test(indexWxmlUi))
-check('齿轮定位在页面内容区（导航栏下方，避开胶囊）', /\.settings-gear\s*\{[\s\S]*?margin-top:/.test(indexWxssUi))
+check('主页面顶部标题 / 副标题已移除', !/header-title/.test(indexWxmlUi) && !/header-sub/.test(indexWxmlUi))
+check('主页面不再有 .header 块', !/class="header"/.test(indexWxmlUi))
+check('index.wxss 里清掉了废弃的 .header / .header-main', !/^\.header\s*\{/m.test(indexWxssUi) && !/^\.header-main\s*\{/m.test(indexWxssUi))
+check('齿轮排在优先级左边（顺序：齿轮 → 优先级 → 历史记录）', (() => {
+  const g = indexWxmlUi.indexOf('class="settings-gear"')
+  const p = indexWxmlUi.indexOf('class="priority-select"')
+  const h = indexWxmlUi.indexOf('class="history-btn"')
+  return g !== -1 && p !== -1 && h !== -1 && g < p && p < h
+})())
+check('齿轮与优先级同组（space-between 下仍紧挨着）', /class="priority-row-left"/.test(indexWxmlUi) && /\.priority-row-left\s*\{/.test(indexWxssUi))
+check('优先级行窄屏可换行（齿轮+胶囊+历史记录一行放不下时）', /\.priority-row\s*\{[\s\S]*?flex-wrap:\s*wrap/.test(indexWxssUi))
 check('历史记录与优先级同一行', /class="priority-row"/.test(indexWxmlUi) && /class="history-btn"/.test(indexWxmlUi))
 check('旧的 topbar 已移除', !/topbar/.test(indexWxmlUi) && !/topbar/.test(indexWxssUi))
 check('操作按钮文字允许换行', /\.action-btn\s*\{[\s\S]*?white-space:\s*normal/.test(appWxssUi))
