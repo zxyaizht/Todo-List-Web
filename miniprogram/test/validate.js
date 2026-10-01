@@ -312,26 +312,61 @@ check('主列表跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?
 check('回收站跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?view\.page = next[\s\S]{0,60}?this\.refresh\(\)/.test(historyJs))
 check('最近用色跳页后走统一跳页逻辑', /apply\(next\)[\s\S]{0,90}?gotoColorPage/.test(settingsJs))
 
-/* 点任务的优先级标签 → 弹窗改优先级（先只做小程序主列表）
+/* 等级拆成两个维度（2026-10-01 用户要求）：轻重（左边的圆形，存 priority）+ 缓急（名称右边的沙漏，存 urgency）
  * 注意：这里用本地变量读 index.wxss —— 后面的 indexWxssUi 声明在这段断言**之后**，
  * 直接引用会触发 TDZ（这个坑踩过好几次了）。 */
 const indexWxssBadge = read(path.join(ROOT, 'pages', 'index', 'index.wxss'))
-check('优先级标签可点（外套一层放大点按区域）', /class="badge-hit" data-id="\{\{item\.id\}\}" bindtap="openPriorityDialog"/.test(indexWxmlInput))
+check('任务行左边是轻重圆形，点它开弹窗', /class="badge-hit" data-id="\{\{item\.id\}\}" bindtap="openLevelDialog"/.test(indexWxmlInput)
+  && /\{\{item\.weightLabel\}\}/.test(indexWxmlInput))
+check('沙漏在任务名之后、添加日期之前', (() => {
+  const txt = indexWxmlInput.indexOf('class="item-text')
+  const u = indexWxmlInput.indexOf('class="urgency-hit"')
+  const d = indexWxmlInput.indexOf('class="item-date"')
+  return txt !== -1 && u !== -1 && d !== -1 && txt < u && u < d
+})())
+check('沙漏只靠颜色表达等级（里面没有文字）', /class="urgency-icon urgency-\{\{item\.urgency\}\}"><\/view>/.test(indexWxmlInput))
+check('沙漏用 CSS 画（emoji 改不了颜色）', /\.urgency-icon::before/.test(appWxssInput) && /border-top:\s*15rpx solid currentColor/.test(appWxssInput))
+check('沙漏四档颜色都定义了（无=固定灰）', ['none', 'low', 'medium', 'high'].every((lv) => new RegExp('\\.urgency-icon\\.urgency-' + lv + '\\s*\\{').test(appWxssInput)))
 check('点按区域放大到 68rpx 且视觉不位移', /\.badge-hit\s*\{[\s\S]*?padding:\s*12rpx;[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
+check('沙漏的点按区域也放大了', /\.urgency-hit\s*\{[\s\S]*?padding:\s*12rpx;[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
 check('按下去有反馈', /hover-class="badge-hit-hover"/.test(indexWxmlInput) && /\.badge-hit-hover\s*\{/.test(indexWxssBadge))
-check('弹窗复用「新建任务」那套优先级胶囊', /class="priority-select priority-dialog-select"/.test(indexWxmlInput)
-  && /class="priority-option priority-\{\{item\}\} \{\{priorityPick === item \? 'selected' : ''\}\}"/.test(indexWxmlInput))
-check('弹窗列出了全部优先级选项', /wx:for="\{\{priorityOrder\}\}"/.test(indexWxmlInput) && /priorityLabels\[item\]/.test(indexWxmlInput))
-check('弹窗有标题与取消 / 确定', /class="page-dialog-title">修改优先级/.test(indexWxmlInput)
-  && /bindtap="closePriorityDialog"/.test(indexWxmlInput) && /bindtap="confirmPriorityDialog"/.test(indexWxmlInput))
-check('弹窗状态放在 data 里', /priorityDialog:\s*false/.test(indexJs) && /priorityPick:\s*'medium'/.test(indexJs))
-check('打开时用这条任务当前的优先级当选中值', /openPriorityDialog\(e\)[\s\S]{0,320}?priorityPick: todo\.priority/.test(indexJs))
-check('弹窗选择器用自己的选中态', /pickDialogPriority\(e\)[\s\S]{0,180}?setData\(\{ priorityPick: value \}\)/.test(indexJs))
-check('优先级没变就不动数据', /confirmPriorityDialog\(\)[\s\S]{0,420}?todo\.priority === next\) return/.test(indexJs))
-check('确定后刷新列表', bodyOf(indexJs, 'confirmPriorityDialog').includes('this.refresh()'))
-// 改完不能让"新建任务"的默认优先级跟着变（那是另一个状态 selectedPriority）
-check('改优先级不碰新建任务的默认优先级', !/selectedPriority/.test(bodyOf(indexJs, 'confirmPriorityDialog')) && !/savePriority/.test(bodyOf(indexJs, 'confirmPriorityDialog')))
-check('关弹窗会清掉目标 id', bodyOf(indexJs, 'closePriorityDialog').includes('priorityTargetId = null'))
+// 弹窗：一个弹窗两行（轻重 / 缓急），沿用 .priority-option 胶囊
+check('弹窗是两行（轻重 / 缓急）', /\{\{levelDialog\}\}[\s\S]*?level-dialog-row[\s\S]*?>轻重<[\s\S]*?level-dialog-row[\s\S]*?>缓急</.test(indexWxmlInput))
+check('弹窗复用「新建任务」那套胶囊', /class="priority-option priority-\{\{item\}\} \{\{levelPick\.priority === item \? 'selected' : ''\}\}"/.test(indexWxmlInput)
+  && /class="priority-option priority-\{\{item\}\} \{\{levelPick\.urgency === item \? 'selected' : ''\}\}"/.test(indexWxmlInput))
+check('两行各自列出全部档位（含「无」）', (indexWxmlInput.match(/wx:for="\{\{levelOrder\}\}"/g) || []).length === 2
+  && /weightLabels\[item\]/.test(indexWxmlInput) && /urgencyLabels\[item\]/.test(indexWxmlInput))
+check('弹窗有标题与取消 / 确定', /class="page-dialog-title">修改等级/.test(indexWxmlInput)
+  && /bindtap="closeLevelDialog"/.test(indexWxmlInput) && /bindtap="confirmLevelDialog"/.test(indexWxmlInput))
+check('弹窗状态放在 data 里', /levelDialog:\s*false/.test(indexJs) && /levelPick:\s*\{\s*priority:/.test(indexJs))
+check('打开时把这条任务的两个等级都拷进弹窗', /openLevelDialog\(e\)[\s\S]{0,400}?priority: core\.normalizeLevel\(todo\.priority\)[\s\S]{0,120}?urgency: core\.normalizeLevel\(todo\.urgency\)/.test(indexJs))
+check('两行共用一个 pickLevel，用 data-kind 区分', /pickLevel\(e\)[\s\S]{0,220}?dataset\.kind/.test(indexJs) && /data-kind="priority"/.test(indexWxmlInput) && /data-kind="urgency"/.test(indexWxmlInput))
+check('两个等级都没变就不动数据', /confirmLevelDialog\(\)[\s\S]{0,520}?todo\.priority === pick\.priority && todo\.urgency === pick\.urgency\)\)\s*return/.test(indexJs))
+check('确定后刷新列表', bodyOf(indexJs, 'confirmLevelDialog').includes('this.refresh()'))
+// 改完不能让"新建任务"的默认档位跟着变（那是另外两个状态）
+check('改等级不碰新建任务的默认档位', !/selectedWeight/.test(bodyOf(indexJs, 'confirmLevelDialog')) && !/selectedUrgency/.test(bodyOf(indexJs, 'confirmLevelDialog')) && !/savePriority|saveUrgency/.test(bodyOf(indexJs, 'confirmLevelDialog')))
+check('关弹窗会清掉目标 id', bodyOf(indexJs, 'closeLevelDialog').includes('levelTargetId = null'))
+// 新建任务那行：不再列胶囊，改成两个循环按钮
+check('新建行只留两个等级按钮（不再列高中低）', /class="level-pick" bindtap="cycleWeight"/.test(indexWxmlInput) && /class="level-pick" bindtap="cycleUrgency"/.test(indexWxmlInput)
+  && !/bindtap="pickPriority"/.test(indexWxmlInput))
+check('两个按钮默认都是「无」（灰色）', /priority:\s*'none'/.test(indexJs) && /urgency:\s*'none'/.test(indexJs) && /weightLabel:\s*'无'/.test(indexJs))
+check('点一下切一级：无 → 轻 → 中 → 重', /cycleWeight\(\)[\s\S]{0,200}?core\.nextLevel\(selectedWeight\)/.test(indexJs)
+  && /cycleUrgency\(\)[\s\S]{0,200}?core\.nextLevel\(selectedUrgency\)/.test(indexJs))
+check('切完会记住这次选择（跨启动保留）', /cycleWeight\(\)[\s\S]{0,240}?store\.savePriority/.test(indexJs) && /cycleUrgency\(\)[\s\S]{0,240}?store\.saveUrgency/.test(indexJs))
+check('两个按钮也放大了点按区域', /\.level-pick\s*\{[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
+// 工具栏：两个维度各一行筛选
+check('工具栏改成两行筛选（轻重 / 缓急）', (indexWxmlInput.match(/wx:for="\{\{levelFilterOrder\}\}"/g) || []).length === 2
+  && /bindtap="setWeightFilter"/.test(indexWxmlInput) && /bindtap="setUrgencyFilter"/.test(indexWxmlInput))
+check('两行筛选各自有自己的状态', /priorityFilter === item/.test(indexWxmlInput) && /urgencyFilter === item/.test(indexWxmlInput)
+  && /priorityFilter:\s*view\.priority/.test(indexJs) && /urgencyFilter:\s*view\.urgency/.test(indexJs))
+check('筛选切换后回到第 1 页', /setWeightFilter\(e\)[\s\S]{0,260}?view\.page = 1/.test(indexJs) && /setUrgencyFilter\(e\)[\s\S]{0,260}?view\.page = 1/.test(indexJs))
+check('筛选含「无」这一档', /LEVEL_FILTER_ORDER = \['all', 'none', 'low', 'medium', 'high'\]/.test(coreJsSrc))
+check('「无」是固定灰色（不跟主题色）', /--priority-none:\s*#[0-9a-fA-F]{6}/.test(appWxssInput)
+  && /\.badge\.priority-none\s*\{[\s\S]*?var\(--priority-none\)/.test(appWxssInput)
+  && /\.item\.priority-none\s*\{[\s\S]*?var\(--priority-none\)/.test(appWxssInput))
+// 排序按「轻重」算，「无」排最后
+check('排序按轻重、无排在最后', /const rankOf = \(t\) => LEVEL_RANK\[normalizeLevel\(t\.priority\)\]/.test(coreJsSrc)
+  && /LEVEL_RANK = \{ none: 0/.test(coreJsSrc))
 
 /* 「完成所有」在全完成后变成「取消所有」 */
 check('按钮文案由 completeAllLabel 决定', /class="action-btn complete" bindtap="completeAll">\{\{completeAllLabel\}\}/.test(indexWxmlInput))
@@ -371,7 +406,7 @@ check('列表空时工具栏只剩箭头并居中', /class="list-toolbar \{\{tot
 check('工具行窄屏可换行（不挤压）', /\.list-toolbar\s*\{[\s\S]*?flex-wrap:\s*wrap/.test(appWxssInput))
 /* 每个"改数据"的操作都要先记一步 */
 ;[
-  ['index', ipage => read(path.join(ROOT, 'pages', 'index', 'index.js')), ['addTodo', 'toggleTodo', 'deleteTodo', 'editTodo', 'completeAll', 'clearDone', 'clearIncomplete', 'clearAll', 'completeClear', 'confirmPriorityDialog']],
+  ['index', ipage => read(path.join(ROOT, 'pages', 'index', 'index.js')), ['addTodo', 'toggleTodo', 'deleteTodo', 'editTodo', 'completeAll', 'clearDone', 'clearIncomplete', 'clearAll', 'completeClear', 'confirmLevelDialog']],
   ['history', () => historyJs, ['restoreOne', 'purgeOne', 'restoreByFilter', 'purgeByFilter']],
   ['settings', () => settingsJs, ['applyCustom', 'removeColor', 'clearAllColors']],
 ].forEach(([page, getSrc, fns]) => {
@@ -393,13 +428,14 @@ check('齿轮仍绑定 goSettings', /class="settings-gear"[^>]*bindtap="goSettin
 check('主页面顶部标题 / 副标题已移除', !/header-title/.test(indexWxmlUi) && !/header-sub/.test(indexWxmlUi))
 check('主页面不再有 .header 块', !/class="header"/.test(indexWxmlUi))
 check('index.wxss 里清掉了废弃的 .header / .header-main', !/^\.header\s*\{/m.test(indexWxssUi) && !/^\.header-main\s*\{/m.test(indexWxssUi))
-check('齿轮排在优先级左边（顺序：齿轮 → 优先级 → 历史记录）', (() => {
+check('齿轮排在两个等级按钮左边（顺序：齿轮 → 轻重圆 → 缓急沙漏 → 历史记录）', (() => {
   const g = indexWxmlUi.indexOf('class="settings-gear"')
-  const p = indexWxmlUi.indexOf('class="priority-select"')
+  const w = indexWxmlUi.indexOf('class="level-pick" bindtap="cycleWeight"')
+  const u = indexWxmlUi.indexOf('class="level-pick" bindtap="cycleUrgency"')
   const h = indexWxmlUi.indexOf('class="history-btn"')
-  return g !== -1 && p !== -1 && h !== -1 && g < p && p < h
+  return g !== -1 && w !== -1 && u !== -1 && h !== -1 && g < w && w < u && u < h
 })())
-check('齿轮与优先级同组（space-between 下仍紧挨着）', /class="priority-row-left"/.test(indexWxmlUi) && /\.priority-row-left\s*\{/.test(indexWxssUi))
+check('齿轮与等级按钮同组（space-between 下仍紧挨着）', /class="priority-row-left"/.test(indexWxmlUi) && /\.priority-row-left\s*\{/.test(indexWxssUi))
 check('优先级行窄屏可换行（齿轮+胶囊+历史记录一行放不下时）', /\.priority-row\s*\{[\s\S]*?flex-wrap:\s*wrap/.test(indexWxssUi))
 check('历史记录与优先级同一行', /class="priority-row"/.test(indexWxmlUi) && /class="history-btn"/.test(indexWxmlUi))
 check('旧的 topbar 已移除', !/topbar/.test(indexWxmlUi) && !/topbar/.test(indexWxssUi))

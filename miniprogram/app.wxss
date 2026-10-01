@@ -25,6 +25,9 @@ page {
   --priority-medium-soft: #fffbeb;
   --priority-low: #22c55e;
   --priority-low-soft: #f0fdf4;
+  /* 「无」等级：固定灰色，**不跟随主题色**（用户要求：选无时圆和沙漏都是灰的） */
+  --priority-none: #94a3b8;
+  --priority-none-soft: #f1f5f9;
   --radius-sm: 20rpx;
   --radius: 28rpx;
 
@@ -135,6 +138,12 @@ page {
   background: var(--priority-low-soft);
 }
 
+/* 「无」：灰色的胶囊（选中的描边由 .selected 统一负责） */
+.priority-option.priority-none {
+  color: var(--priority-none);
+  background: var(--priority-none-soft);
+}
+
 .priority-option.selected {
   border-color: currentColor;
 }
@@ -180,16 +189,22 @@ page {
   color: var(--danger);
 }
 
-/* ── 工具行：排序 + 优先级筛选 ── */
+/* ── 工具行：第一行「排序 + 撤回/取消撤回」，下面两行是「轻重」「缓急」两行筛选 ── */
 
 .list-toolbar {
   display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin: 20rpx 0 16rpx;
+}
+
+.toolbar-top {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  /* 行内是「排序 + 撤回/取消撤回 + 优先级筛选」，窄屏放不下时整段换行，不要互相挤压 */
+  /* 只有「排序 + 撤回/取消撤回」两个东西，窄屏放不下时换行，不要互相挤压 */
   flex-wrap: wrap;
-  row-gap: 12rpx;
-  margin: 20rpx 0 16rpx;
+  gap: 12rpx;
 }
 
 .sort-btn {
@@ -202,9 +217,10 @@ page {
   border-radius: 999rpx;
 }
 
-/* 列表空时工具栏只剩撤回/取消撤回两个箭头：居中，不要孤零零挂在左边 */
+/* 列表空时工具栏只剩撤回/取消撤回两个箭头：居中，不要孤零零挂在左边
+ * （工具行是纵向排列，所以这里要居中靠 align-items 而不是 justify-content） */
 .list-toolbar.solo {
-  justify-content: center;
+  align-items: center;
 }
 
 /* 撤回 / 取消撤回：夹在排序与优先级筛选中间。
@@ -266,6 +282,11 @@ page {
 .priority-filter-option.priority-low {
   color: var(--priority-low);
   background: var(--priority-low-soft);
+}
+
+.priority-filter-option.priority-none {
+  color: var(--priority-none);
+  background: var(--priority-none-soft);
 }
 
 .priority-filter-option.active {
@@ -349,6 +370,11 @@ page {
   border-left-color: var(--priority-low);
 }
 
+/* 「无」：左侧竖条也是灰的（不跟主题） */
+.item.priority-none {
+  border-left-color: var(--priority-none);
+}
+
 .item.done {
   opacity: 0.72;
 }
@@ -375,6 +401,63 @@ page {
 
 .badge.priority-low {
   background: var(--priority-low);
+}
+
+/* 「无」：灰色实心圆（不跟主题） */
+.badge.priority-none {
+  background: var(--priority-none);
+}
+
+/* ── 缓急沙漏（在任务名右边、添加日期左边）──
+ * 必须用 CSS 画：emoji ⏳ 是彩色字形，CSS 的 color 改不了它的颜色，
+ * 而这里**只能靠颜色**表达缓急程度。两个三角（上下）+ 上下两条横杠拼成沙漏，
+ * 颜色用 currentColor —— 谁给 color 就是谁的颜色（见下面的 .urgency-xxx）。 */
+.urgency-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 32rpx;
+  height: 36rpx;
+  box-sizing: border-box;
+  color: var(--priority-none);
+  border-top: 3rpx solid currentColor;
+  border-bottom: 3rpx solid currentColor;
+}
+
+.urgency-icon::before,
+.urgency-icon::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-left: 16rpx solid transparent;
+  border-right: 16rpx solid transparent;
+}
+
+.urgency-icon::before {
+  top: 0;
+  border-top: 15rpx solid currentColor; /* 上半：向下的三角 */
+}
+
+.urgency-icon::after {
+  bottom: 0;
+  border-bottom: 15rpx solid currentColor; /* 下半：向上的三角 */
+}
+
+.urgency-icon.urgency-none {
+  color: var(--priority-none);
+}
+
+.urgency-icon.urgency-low {
+  color: var(--priority-low);
+}
+
+.urgency-icon.urgency-medium {
+  color: var(--priority-medium);
+}
+
+.urgency-icon.urgency-high {
+  color: var(--priority-high);
 }
 
 .check {

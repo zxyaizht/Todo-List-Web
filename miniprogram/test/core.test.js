@@ -68,8 +68,35 @@ check('只看未完成', core.getFilteredItems(items, 'active', 'all').map((t) =
 check('优先级筛选（高）', core.getFilteredItems(items, 'all', 'high').map((t) => t.text), ['A', 'D'])
 check('完成状态 + 优先级叠加', core.getFilteredItems(items, 'active', 'high').map((t) => t.text), ['A', 'D'])
 
+log('--- 等级：轻重 + 缓急（2026-10-01 从单一优先级拆出来） ---')
+check('轻重的四档文案', ['none', 'low', 'medium', 'high'].map((k) => core.WEIGHT_LABELS[k]), ['无', '轻', '中', '重'])
+check('缓急的四档文案', ['none', 'low', 'medium', 'high'].map((k) => core.URGENCY_LABELS[k]), ['无', '缓', '中', '急'])
+check('初次使用的默认是「无」', core.DEFAULT_LEVEL, 'none')
+check('点一下切一级：无 → 轻 → 中 → 重 → 无',
+  [core.nextLevel('none'), core.nextLevel('low'), core.nextLevel('medium'), core.nextLevel('high')],
+  ['low', 'medium', 'high', 'none'])
+check('认不出的值一律当「无」',
+  [core.normalizeLevel('xx'), core.normalizeLevel(undefined), core.normalizeLevel(''), core.normalizeLevel(null)],
+  ['none', 'none', 'none', 'none'])
+check('合法档位原样返回', [core.normalizeLevel('high'), core.normalizeLevel('none')], ['high', 'none'])
+
+// 两个维度各自筛，且互不影响；老数据没有 urgency 字段要当「无」
+const twoDim = [
+  { id: 1, text: 'A', done: false, priority: 'high', urgency: 'low', createdAt: now - 3000 },
+  { id: 2, text: 'B', done: false, priority: 'low', urgency: 'high', createdAt: now - 2000 },
+  { id: 3, text: 'C', done: false, priority: 'none', createdAt: now - 1000 },
+]
+check('只按轻重筛', core.getFilteredItems(twoDim, 'all', 'high').map((t) => t.text), ['A'])
+check('只按缓急筛', core.getFilteredItems(twoDim, 'all', 'all', 'high').map((t) => t.text), ['B'])
+check('两个维度叠加', core.getFilteredItems(twoDim, 'all', 'low', 'high').map((t) => t.text), ['B'])
+check('两个维度互不相容时筛空', core.getFilteredItems(twoDim, 'all', 'high', 'high').map((t) => t.text), [])
+check('没有 urgency 的老数据算「无」', core.getFilteredItems(twoDim, 'all', 'all', 'none').map((t) => t.text), ['C'])
+check('筛轻重「无」也能命中老数据', core.getFilteredItems(twoDim, 'all', 'none').map((t) => t.text), ['C'])
+
 log('--- 排序 ---')
 const vis = (arr) => arr.map((t) => ({ todo: t, indices: null }))
+check('「无」在轻重降序里排最后', core.sortVisibleItems(vis(twoDim), 'priority-desc').map((x) => x.todo.text), ['A', 'B', 'C'])
+check('「无」在轻重升序里排最前', core.sortVisibleItems(vis(twoDim), 'priority-asc').map((x) => x.todo.text), ['C', 'B', 'A'])
 check('时间降序', core.sortVisibleItems(vis(items), 'time-desc').map((x) => x.todo.text), ['B', 'D', 'C', 'A'])
 check('时间升序', core.sortVisibleItems(vis(items), 'time-asc').map((x) => x.todo.text), ['A', 'C', 'D', 'B'])
 check('优先级降序（同级按时间从新到旧）', core.sortVisibleItems(vis(items), 'priority-desc').map((x) => x.todo.text), ['D', 'A', 'C', 'B'])

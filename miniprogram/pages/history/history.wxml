@@ -22,17 +22,31 @@
   <view wx:if="{{hint}}" class="search-hint {{hintNoMatch ? 'no-match' : ''}}">{{hint}}</view>
 
   <block wx:if="{{total > 0}}">
+    <!-- 与主列表同一套工具栏：第一行排序，下面两行是「轻重」「缓急」两个维度的筛选。
+         回收站没有撤回箭头（撤回只在主页面）。 -->
     <view class="list-toolbar">
-      <view class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
+      <view class="toolbar-top">
+        <view class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
+      </view>
       <view class="priority-filter">
-        <text class="priority-filter-title">优先级</text>
+        <text class="priority-filter-title">轻重</text>
         <view
-          wx:for="{{priorityFilterOrder}}"
+          wx:for="{{levelFilterOrder}}"
           wx:key="*this"
           class="priority-filter-option priority-{{item}} {{priorityFilter === item ? 'active' : ''}}"
-          data-priority="{{item}}"
-          bindtap="setPriorityFilter"
-        >{{priorityFilterLabels[item]}}</view>
+          data-level="{{item}}"
+          bindtap="setWeightFilter"
+        >{{weightFilterLabels[item]}}</view>
+      </view>
+      <view class="priority-filter">
+        <text class="priority-filter-title">缓急</text>
+        <view
+          wx:for="{{levelFilterOrder}}"
+          wx:key="*this"
+          class="priority-filter-option priority-{{item}} {{urgencyFilter === item ? 'active' : ''}}"
+          data-level="{{item}}"
+          bindtap="setUrgencyFilter"
+        >{{urgencyFilterLabels[item]}}</view>
       </view>
     </view>
 
@@ -52,11 +66,14 @@
         class="item {{item.isColor ? '' : 'priority-' + item.priority}} {{item.done ? 'done' : ''}}"
       >
         <view wx:if="{{item.isColor}}" class="color-chip" style="background: {{item.text}}"></view>
-        <view wx:else class="badge priority-{{item.priority}}">{{item.priorityLabel}}</view>
+        <view wx:else class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
 
         <view class="item-text">
           <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
         </view>
+
+        <!-- 缓急沙漏（只在名称右边、日期左边，与主列表同一位置）；颜色条目没有等级，不显示 -->
+        <view wx:if="{{!item.isColor}}" class="urgency-icon urgency-{{item.urgency}}"></view>
 
         <view wx:if="{{item.kindLabel}}" class="kind-tag">{{item.kindLabel}}</view>
         <view wx:if="{{item.dateText}}" class="item-date">{{item.dateText}}</view>

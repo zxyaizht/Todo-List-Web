@@ -61,8 +61,30 @@
   opacity: 0.55;
 }
 
-/* 改优先级弹窗里的选择器：与「新建任务」那行同一套胶囊，居中摆放 */
-.priority-dialog-select {
+/* 新建任务那一行的两个等级按钮（圆=轻重、沙漏=缓急）：外面套一层把点按区域放大，
+   负 margin 把多出来的内边距抵消掉，所以视觉位置就是设计的位置 */
+.level-pick {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 12rpx;
+  margin: -12rpx;
+}
+
+/* 任务行里的沙漏：同样套一层放大点按区域（沙漏本身只有 32rpx 宽） */
+.urgency-hit {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 12rpx;
+  margin: -12rpx;
+}
+
+/* 改等级弹窗：两行（轻重 / 缓急），每行是「标签 + 四个胶囊」，居中摆放 */
+.level-dialog-row {
+  display: flex;
+  align-items: center;
   justify-content: center;
-  margin-top: 28rpx;
+  gap: 12rpx;
+  margin-top: 24rpx;
 }

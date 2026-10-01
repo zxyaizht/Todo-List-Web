@@ -22,19 +22,16 @@
     <view class="form-btn" bindtap="addTodo">➕ 添加</view>
   </view>
 
-  <!-- 齿轮 + 优先级 + 历史记录同一行：顶部标题栏已去掉，齿轮从右上角挪到「优先级」左边 -->
+  <!-- 齿轮 + 轻重 + 缓急 + 历史记录同一行。等级不用把「高中低」全列出来，
+       各留一个按钮，点一下切一级（无 → 轻 → 中 → 重 / 无 → 缓 → 中 → 急），省地方 -->
   <view class="priority-row">
     <view class="priority-row-left">
       <view class="settings-gear" bindtap="goSettings" aria-label="设置">⚙️</view>
-      <view class="priority-select">
-        <text class="priority-label">优先级</text>
-        <view
-          wx:for="{{priorityOrder}}"
-          wx:key="*this"
-          class="priority-option priority-{{item}} {{priority === item ? 'selected' : ''}}"
-          data-priority="{{item}}"
-          bindtap="pickPriority"
-        >{{priorityLabels[item]}}</view>
+      <view class="level-pick" bindtap="cycleWeight" hover-class="badge-hit-hover" aria-label="轻重">
+        <view class="badge priority-{{priority}}">{{weightLabel}}</view>
+      </view>
+      <view class="level-pick" bindtap="cycleUrgency" hover-class="badge-hit-hover" aria-label="缓急">
+        <view class="urgency-icon urgency-{{urgency}}"></view>
       </view>
     </view>
     <view class="history-btn" bindtap="goHistory">🕘 历史记录{{historyCount > 0 ? ' (' + historyCount + ')' : ''}}</view>
@@ -56,26 +53,40 @@
   </view>
   <view wx:if="{{hint}}" class="search-hint {{hintNoMatch ? 'no-match' : ''}}">{{hint}}</view>
 
-  <!-- 工具栏：有任务时是「排序 + 撤回/取消撤回 + 优先级筛选」。
+  <!-- 工具栏：第一行「排序 + 撤回/取消撤回」，下面两行是「轻重」「缓急」两个维度的筛选。
        任务被清空后排序/筛选没意义了，但**撤回箭头必须留着** ——
        「清空全部」之后正是最需要撤回的时候（列表空了，如果连箭头一起消失就等于没救）。 -->
   <block wx:if="{{total > 0 || canUndo || canRedo}}">
     <view class="list-toolbar {{total > 0 ? '' : 'solo'}}">
-      <view wx:if="{{total > 0}}" class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
-      <!-- 撤回 / 取消撤回：夹在排序与优先级筛选中间；实心主题色，与「添加」按钮同色 -->
-      <view class="undo-group">
-        <view class="undo-btn {{canUndo ? '' : 'disabled'}}" bindtap="undoAction" aria-label="撤回">↶</view>
-        <view class="undo-btn {{canRedo ? '' : 'disabled'}}" bindtap="redoAction" aria-label="取消撤回">↷</view>
+      <view class="toolbar-top">
+        <view wx:if="{{total > 0}}" class="sort-btn" bindtap="openSort">⇅ {{sortLabel}}</view>
+        <!-- 撤回 / 取消撤回：实心主题色，与「添加」按钮同色 -->
+        <view class="undo-group">
+          <view class="undo-btn {{canUndo ? '' : 'disabled'}}" bindtap="undoAction" aria-label="撤回">↶</view>
+          <view class="undo-btn {{canRedo ? '' : 'disabled'}}" bindtap="redoAction" aria-label="取消撤回">↷</view>
+        </view>
       </view>
+      <!-- 轻重筛选（全部 / 无 / 轻 / 中 / 重） -->
       <view wx:if="{{total > 0}}" class="priority-filter">
-        <text class="priority-filter-title">优先级</text>
+        <text class="priority-filter-title">轻重</text>
         <view
-          wx:for="{{priorityFilterOrder}}"
+          wx:for="{{levelFilterOrder}}"
           wx:key="*this"
           class="priority-filter-option priority-{{item}} {{priorityFilter === item ? 'active' : ''}}"
-          data-priority="{{item}}"
-          bindtap="setPriorityFilter"
-        >{{priorityFilterLabels[item]}}</view>
+          data-level="{{item}}"
+          bindtap="setWeightFilter"
+        >{{weightFilterLabels[item]}}</view>
+      </view>
+      <!-- 缓急筛选（全部 / 无 / 缓 / 中 / 急） -->
+      <view wx:if="{{total > 0}}" class="priority-filter">
+        <text class="priority-filter-title">缓急</text>
+        <view
+          wx:for="{{levelFilterOrder}}"
+          wx:key="*this"
+          class="priority-filter-option priority-{{item}} {{urgencyFilter === item ? 'active' : ''}}"
+          data-level="{{item}}"
+          bindtap="setUrgencyFilter"
+        >{{urgencyFilterLabels[item]}}</view>
       </view>
     </view>
   </block>
@@ -98,14 +109,19 @@
         wx:key="id"
         class="item priority-{{item.priority}} {{item.done ? 'done' : ''}}"
       >
-        <!-- 优先级标签：点它弹窗改优先级。外面套一层只为把点按区域放大（44rpx 的圆太小了），
-             负 margin 抵消掉多出来的内边距，视觉位置和以前一模一样 -->
-        <view class="badge-hit" data-id="{{item.id}}" bindtap="openPriorityDialog" hover-class="badge-hit-hover">
-          <view class="badge priority-{{item.priority}}">{{item.priorityLabel}}</view>
+        <!-- 轻重（重要性）：左边的圆形，点它弹窗改等级。外面套一层只为把点按区域放大
+             （44rpx 的圆太小了），负 margin 抵消掉多出来的内边距，视觉位置和以前一样 -->
+        <view class="badge-hit" data-id="{{item.id}}" bindtap="openLevelDialog" hover-class="badge-hit-hover">
+          <view class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
         </view>
         <view class="check {{item.done ? 'checked' : ''}}" data-id="{{item.id}}" bindtap="toggleTodo">✓</view>
         <view class="item-text" data-id="{{item.id}}" bindtap="editTodo">
           <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
+        </view>
+        <!-- 缓急（紧急性）：名称右边、日期左边的沙漏。只靠颜色表达等级（不加文字），
+             点它和点圆形是同一个弹窗 -->
+        <view class="urgency-hit" data-id="{{item.id}}" bindtap="openLevelDialog" hover-class="badge-hit-hover" aria-label="缓急">
+          <view class="urgency-icon urgency-{{item.urgency}}"></view>
         </view>
         <view wx:if="{{item.dateText}}" class="item-date">{{item.dateText}}</view>
         <view class="item-op del" data-id="{{item.id}}" bindtap="deleteTodo">✕</view>
@@ -134,23 +150,36 @@
     <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
   </view>
 
-  <!-- 改优先级弹窗：选择器与「新建任务」那行是同一套胶囊（.priority-option） -->
-  <view wx:if="{{priorityDialog}}" class="page-dialog">
+  <!-- 改等级弹窗：一个弹窗两行（轻重 / 缓急），点任务上的圆形或沙漏都打开它。
+       胶囊沿用「新建任务」那套 .priority-option，配色天然一致。 -->
+  <view wx:if="{{levelDialog}}" class="page-dialog">
     <view class="page-dialog-card">
-      <view class="page-dialog-title">修改优先级</view>
-      <view class="priority-select priority-dialog-select">
-        <text class="priority-label">优先级</text>
+      <view class="page-dialog-title">修改等级</view>
+      <view class="level-dialog-row">
+        <text class="priority-label">轻重</text>
         <view
-          wx:for="{{priorityOrder}}"
+          wx:for="{{levelOrder}}"
           wx:key="*this"
-          class="priority-option priority-{{item}} {{priorityPick === item ? 'selected' : ''}}"
-          data-priority="{{item}}"
-          bindtap="pickDialogPriority"
-        >{{priorityLabels[item]}}</view>
+          class="priority-option priority-{{item}} {{levelPick.priority === item ? 'selected' : ''}}"
+          data-kind="priority"
+          data-level="{{item}}"
+          bindtap="pickLevel"
+        >{{weightLabels[item]}}</view>
+      </view>
+      <view class="level-dialog-row">
+        <text class="priority-label">缓急</text>
+        <view
+          wx:for="{{levelOrder}}"
+          wx:key="*this"
+          class="priority-option priority-{{item}} {{levelPick.urgency === item ? 'selected' : ''}}"
+          data-kind="urgency"
+          data-level="{{item}}"
+          bindtap="pickLevel"
+        >{{urgencyLabels[item]}}</view>
       </view>
       <view class="page-dialog-actions">
-        <view class="page-dialog-btn" bindtap="closePriorityDialog">取消</view>
-        <view class="page-dialog-btn primary" bindtap="confirmPriorityDialog">确定</view>
+        <view class="page-dialog-btn" bindtap="closeLevelDialog">取消</view>
+        <view class="page-dialog-btn primary" bindtap="confirmLevelDialog">确定</view>
       </view>
     </view>
   </view>

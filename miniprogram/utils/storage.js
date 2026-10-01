@@ -8,7 +8,8 @@ const TODOS_KEY = 'todo-list-items'
 const HISTORY_KEY = 'todo-history-items'
 const THEME_KEY = 'todo-theme-color'
 const SOUND_KEY = 'todo-sound-settings'
-const PRIORITY_KEY = 'todo-priority'
+const PRIORITY_KEY = 'todo-priority' // 「轻重」（沿用老键，老数据不用迁移）
+const URGENCY_KEY = 'todo-urgency' // 「缓急」（新键）
 const COLORS_KEY = 'todo-custom-colors'
 const MAX_HISTORY = 200
 // 自定义色数量**不限**（用户要求）：只受小程序存储上限约束。
@@ -48,7 +49,9 @@ function writeList(key, list) {
 function loadTodos() {
   return readList(TODOS_KEY).map((t) => ({
     ...t,
-    priority: t.priority || 'medium',
+    // 等级两个维度都收敛到合法档位：老数据没有 urgency 字段 → 当「无」
+    priority: core.normalizeLevel(t.priority),
+    urgency: core.normalizeLevel(t.urgency),
     done: !!t.done,
     // 老数据没有 createdAt：id 本身就是 Date.now() 生成的，可直接复用
     createdAt: t.createdAt || (isFinite(Number(t.id)) && Number(t.id) > 1e12 ? Number(t.id) : 0),
@@ -64,7 +67,8 @@ function saveTodos(todos) {
 function loadHistory() {
   return readList(HISTORY_KEY).map((t) => ({
     ...t,
-    priority: t.priority || 'medium',
+    priority: core.normalizeLevel(t.priority),
+    urgency: core.normalizeLevel(t.urgency),
     done: !!t.done,
     // 历史条目原先只存了 deletedAt；用它兜底，让「按照时间」排序在回收站也有意义
     createdAt: t.createdAt || t.deletedAt || 0,
@@ -88,7 +92,9 @@ function pushToHistory(items, options) {
     id: t.id,
     text: t.text,
     done: !!t.done,
-    priority: t.priority || 'medium',
+    // 进回收站时两个等级都要透传，否则恢复回来会丢
+    priority: core.normalizeLevel(t.priority),
+    urgency: core.normalizeLevel(t.urgency),
     kind: t.kind,
     createdAt: t.createdAt,
     deletedAt: Date.now(),
@@ -143,7 +149,8 @@ function deleteCustomColor(hex) {
     id: `color-${Date.now()}`,
     text: target,
     done: false,
-    priority: 'medium',
+    // 颜色条目没有等级，统一记「无」（回收站里它显示成色块，不显示圆和沙漏）
+    priority: 'none',
     kind: 'color',
   }])
 }
@@ -155,7 +162,8 @@ function clearAllCustomColors() {
     id: `color-${Date.now()}-${i}`,
     text: c.toLowerCase(),
     done: false,
-    priority: 'medium',
+    // 颜色条目没有等级，统一记「无」（回收站里它显示成色块，不显示圆和沙漏）
+    priority: 'none',
     kind: 'color',
   }))
   pushToHistory(items)
@@ -171,28 +179,44 @@ function restoreCustomColor(hex) {
   writeList(COLORS_KEY, list)
 }
 
-/* ── 优先级（跨启动记住上次手选值） ── */
+/* ── 等级（轻重 / 缓急，各自跨启动记住上次手选值） ── */
 
-function loadPriority() {
+// 「轻重」沿用原来的 todo-priority 键（老数据不用迁移）；「缓急」是新键
+function loadLevel(key) {
   try {
-    const raw = wx.getStorageSync(PRIORITY_KEY)
-    return core.PRIORITY_ORDER.indexOf(raw) !== -1 ? raw : core.DEFAULT_PRIORITY
+    return core.normalizeLevel(wx.getStorageSync(key))
   } catch (e) {
-    return core.DEFAULT_PRIORITY
+    return core.DEFAULT_LEVEL
   }
 }
 
-function savePriority(value) {
+function saveLevel(key, value) {
   try {
-    wx.setStorageSync(PRIORITY_KEY, value)
+    wx.setStorageSync(key, core.normalizeLevel(value))
   } catch (e) {}
+}
+
+function loadPriority() {
+  return loadLevel(PRIORITY_KEY)
+}
+
+function savePriority(value) {
+  saveLevel(PRIORITY_KEY, value)
+}
+
+function loadUrgency() {
+  return loadLevel(URGENCY_KEY)
+}
+
+function saveUrgency(value) {
+  saveLevel(URGENCY_KEY, value)
 }
 
 /* ── 音效开关 + 音量/频率 ── */
 
 const SOUND_TYPES = [
   { key: 'add', label: '添加任务' },
-  { key: 'priority', label: '设置优先级' },
+  { key: 'priority', label: '切换等级' },
   { key: 'delete', label: '删除任务' },
   { key: 'clearDone', label: '清空已完成' },
   { key: 'clearAll', label: '清空全部' },
@@ -247,6 +271,7 @@ module.exports = {
   THEME_KEY,
   SOUND_KEY,
   PRIORITY_KEY,
+  URGENCY_KEY,
   COLORS_KEY,
   MAX_HISTORY,
   MAX_CUSTOM_COLORS,
@@ -269,6 +294,10 @@ module.exports = {
   restoreCustomColor,
   loadPriority,
   savePriority,
+  loadUrgency,
+  saveUrgency,
+  loadLevel,
+  saveLevel,
   loadSoundSettings,
   saveSoundSettings,
 }

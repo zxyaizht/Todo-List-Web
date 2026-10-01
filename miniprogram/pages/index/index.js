@@ -7,8 +7,9 @@ const undo = require('../../utils/undo')
 
 const app = getApp()
 
-// 视图状态（与网页版一致：筛选/排序/优先级筛选都只存在内存，重启回到默认）
-const view = { search: '', filter: 'all', sort: core.DEFAULT_SORT, priority: 'all', page: 1 }
+// 视图状态（与网页版一致：筛选/排序/两个等级筛选都只存在内存，重启回到默认）
+// view.priority 是「轻重」、view.urgency 是「缓急」，两个筛选互不影响
+const view = { search: '', filter: 'all', sort: core.DEFAULT_SORT, priority: 'all', urgency: 'all', page: 1 }
 
 // 页码跳转弹窗要用的三个回调（弹窗与解析规则都在 utils/pagedit.js）
 const PAGE_OPTS = {
@@ -21,7 +22,10 @@ const PAGE_OPTS = {
   },
 }
 
-let selectedPriority = 'medium'
+/* 新建任务时用的等级：两个维度各自记住上次的选择（存在 storage 里，跨启动保留）。
+ * 初次使用都是「无」（用户要求）。 */
+let selectedWeight = 'none'
+let selectedUrgency = 'none'
 
 // 只给要显示的条目做高亮分段（原来是对全部可见条目都算一遍，纯浪费）
 function decorate(item, indices) {
@@ -29,8 +33,10 @@ function decorate(item, indices) {
     id: item.id,
     text: item.text,
     done: !!item.done,
-    priority: item.priority,
-    priorityLabel: core.PRIORITY_LABELS[item.priority] || '中',
+    // 轻重 = 左边的圆形（存字段仍是 priority），缓急 = 右边的沙漏
+    priority: core.normalizeLevel(item.priority),
+    weightLabel: core.WEIGHT_LABELS[core.normalizeLevel(item.priority)],
+    urgency: core.normalizeLevel(item.urgency),
     // 补一个下标当 wx:key（片段内容可能重复，不能用内容做 key）
     segments: core.highlightSegments(item.text, indices).map((s, i) => ({ v: s.v, hit: s.hit, i })),
     dateText: core.formatCreatedAt(item.createdAt),
@@ -43,14 +49,21 @@ Page({
     inputValue: '',
     // 绑定到输入框的 focus：失焦时置 false，添加任务后按需置 true 让它重新获得光标
     inputFocus: false,
-    priority: 'medium',
-    priorityOrder: core.PRIORITY_ORDER,
-    priorityLabels: core.PRIORITY_LABELS,
+    // 新建任务的两个等级（点按钮循环切换）
+    priority: 'none',
+    weightLabel: '无',
+    urgency: 'none',
+    levelOrder: core.LEVELS,
+    weightLabels: core.WEIGHT_LABELS,
+    urgencyLabels: core.URGENCY_LABELS,
     search: '',
     filter: 'all',
+    // 两个维度各一行筛选
     priorityFilter: 'all',
-    priorityFilterOrder: core.PRIORITY_FILTER_ORDER,
-    priorityFilterLabels: core.PRIORITY_FILTER_LABELS,
+    urgencyFilter: 'all',
+    levelFilterOrder: core.LEVEL_FILTER_ORDER,
+    weightFilterLabels: core.WEIGHT_FILTER_LABELS,
+    urgencyFilterLabels: core.URGENCY_FILTER_LABELS,
     sortLabel: '排序',
     sortShort: core.SORT_SHORT,
     items: [],
@@ -68,9 +81,9 @@ Page({
     pageTotal: 1,
     // 当前键盘高度（px）：弹窗靠它把卡片顶到键盘上方
     pageKeyHeight: 0,
-    // 改优先级弹窗（点任务的优先级标签）
-    priorityDialog: false,
-    priorityPick: 'medium',
+    // 改等级弹窗（点任务上的圆形或沙漏）：一个弹窗两行，轻重 + 缓急
+    levelDialog: false,
+    levelPick: { priority: 'none', urgency: 'none' },
     visibleCount: 0,
     totalPages: 1,
     page: 1,
@@ -85,8 +98,14 @@ Page({
   // 首屏在 onLoad 里就渲染好，避免启动后"先空白再填充"
   onLoad() {
     perf.mark('index onLoad 开始')
-    selectedPriority = store.loadPriority()
-    this.setData({ priority: selectedPriority, themeStyle: app.globalData.themeStyle })
+    selectedWeight = store.loadPriority()
+    selectedUrgency = store.loadUrgency()
+    this.setData({
+      priority: selectedWeight,
+      weightLabel: core.WEIGHT_LABELS[selectedWeight],
+      urgency: selectedUrgency,
+      themeStyle: app.globalData.themeStyle,
+    })
     this.refresh()
     perf.mark('index 数据就绪')
   },
@@ -178,6 +197,7 @@ Page({
       search: view.search,
       filter: view.filter,
       priorityFilter: view.priority,
+      urgencyFilter: view.urgency,
       sortLabel: core.SORT_SHORT[view.sort] || '排序',
       hint,
       hintNoMatch,
@@ -215,12 +235,21 @@ Page({
     const todos = store.loadTodos()
     const now = Date.now()
     // LIFO：新任务插到数组头部，显示在最上方
-    todos.unshift({ id: now, text, done: false, priority: selectedPriority, createdAt: now })
+    // LIFO：新任务插到数组头部，显示在最上方
+    todos.unshift({
+      id: now,
+      text,
+      done: false,
+      priority: selectedWeight, // 轻重（左边的圆形）
+      urgency: selectedUrgency, // 缓急（右边名称后的沙漏）
+      createdAt: now,
+    })
     store.saveTodos(todos)
     // 新任务一定是未完成：若正筛选「已完成」就切回全部，否则用户以为没加成功
     if (view.filter === 'done') view.filter = 'all'
-    // 同理，优先级筛选若会挡住它，也一并取消
-    if (view.priority !== 'all' && view.priority !== selectedPriority) view.priority = 'all'
+    // 同理，两个等级筛选若会挡住它，也一并取消
+    if (view.priority !== 'all' && view.priority !== selectedWeight) view.priority = 'all'
+    if (view.urgency !== 'all' && view.urgency !== selectedUrgency) view.urgency = 'all'
     view.page = 1
     this.inputText = ''
     this.setData({ inputValue: '' })
@@ -244,52 +273,69 @@ Page({
     }, 50)
   },
 
-  pickPriority(e) {
-    const value = e.currentTarget.dataset.priority
-    if (value === selectedPriority) return
-    selectedPriority = value
-    store.savePriority(value)
-    this.setData({ priority: value })
+  /* 新建任务的两个等级：点一下切一级（无 → 轻 → 中 → 重 / 无 → 缓 → 中 → 急），
+   * 并把这次选择记住（下次进来还是这一档）。切换只改这两个按钮本身，不整页重渲染。 */
+  cycleWeight() {
+    selectedWeight = core.nextLevel(selectedWeight)
+    store.savePriority(selectedWeight)
+    this.setData({ priority: selectedWeight, weightLabel: core.WEIGHT_LABELS[selectedWeight] })
+    sound.play('priority')
+  },
+
+  cycleUrgency() {
+    selectedUrgency = core.nextLevel(selectedUrgency)
+    store.saveUrgency(selectedUrgency)
+    this.setData({ urgency: selectedUrgency })
     sound.play('priority')
   },
 
   /* ── 任务操作 ── */
 
-  /* 改优先级：点任务左边的优先级标签 → 弹窗（选择器和"新建任务"那行是同一套胶囊）→ 确定。
-   * 弹窗里的选中态用 data.priorityPick（**不是**全局的 selectedPriority ——
-   * 那是"新建任务用哪个优先级"，改完不能让下一次新建跟着变）。 */
-  openPriorityDialog(e) {
+  /* 改等级：点任务上的圆形（轻重）或沙漏（缓急）都打开同一个弹窗，
+   * 弹窗里两行（轻重 / 缓急），改完点确定才写盘。
+   * 弹窗里的选中态是**独立的一份拷贝** data.levelPick —— 绝不能借用 selectedWeight /
+   * selectedUrgency（那是"新建任务用哪一档"），否则改一条任务会连带改掉下次新建的默认值。 */
+  openLevelDialog(e) {
     const id = e.currentTarget.dataset.id
     const todo = store.loadTodos().find((t) => String(t.id) === String(id))
     if (!todo) return
-    this.priorityTargetId = String(id)
-    this.setData({ priorityDialog: true, priorityPick: todo.priority || 'medium' })
+    this.levelTargetId = String(id)
+    this.setData({
+      levelDialog: true,
+      levelPick: {
+        priority: core.normalizeLevel(todo.priority),
+        urgency: core.normalizeLevel(todo.urgency),
+      },
+    })
   },
 
-  pickDialogPriority(e) {
-    const value = e.currentTarget.dataset.priority
-    if (value === this.data.priorityPick) return
-    this.setData({ priorityPick: value })
-    sound.play('priority') // 与新建任务时选优先级同一个反馈音
+  // data-kind 区分改的是哪一行（priority = 轻重 / urgency = 缓急）
+  pickLevel(e) {
+    const kind = e.currentTarget.dataset.kind
+    const level = e.currentTarget.dataset.level
+    if (!kind || this.data.levelPick[kind] === level) return
+    this.setData({ ['levelPick.' + kind]: level })
+    sound.play('priority')
   },
 
-  closePriorityDialog() {
-    this.priorityTargetId = null
-    this.setData({ priorityDialog: false })
+  closeLevelDialog() {
+    this.levelTargetId = null
+    this.setData({ levelDialog: false })
   },
 
-  confirmPriorityDialog() {
-    const id = this.priorityTargetId
-    const next = this.data.priorityPick
-    this.priorityTargetId = null
-    this.setData({ priorityDialog: false })
-    if (id == null || !next) return
+  confirmLevelDialog() {
+    const id = this.levelTargetId
+    const pick = this.data.levelPick
+    this.levelTargetId = null
+    this.setData({ levelDialog: false })
+    if (id == null || !pick) return
     const todos = store.loadTodos()
     const todo = todos.find((t) => String(t.id) === String(id))
-    // 优先级没变就什么也不做（不写盘、也不白记一步撤回）
-    if (!todo || todo.priority === next) return
+    // 两个等级都没变就什么也不做（不写盘、也不白记一步撤回）
+    if (!todo || (todo.priority === pick.priority && todo.urgency === pick.urgency)) return
     undo.push()
-    todo.priority = next
+    todo.priority = pick.priority
+    todo.urgency = pick.urgency
     store.saveTodos(todos)
     sound.play('priority')
     this.refresh()
@@ -364,10 +410,20 @@ Page({
     })
   },
 
-  setPriorityFilter(e) {
-    const value = e.currentTarget.dataset.priority
+  /* 两个维度各一行筛选（都是视图状态，不持久化；切换后回到第 1 页） */
+  setWeightFilter(e) {
+    const value = e.currentTarget.dataset.level
     if (value === view.priority) return
     view.priority = value
+    view.page = 1
+    sound.play('priority')
+    this.refresh()
+  },
+
+  setUrgencyFilter(e) {
+    const value = e.currentTarget.dataset.level
+    if (value === view.urgency) return
+    view.urgency = value
     view.page = 1
     sound.play('priority')
     this.refresh()

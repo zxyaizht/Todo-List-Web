@@ -269,31 +269,52 @@ const RAINBOW_COLORS = [
   { name: '紫', hex: '#8b5cf6' },
 ]
 
-const PRIORITY_ORDER = ['high', 'medium', 'low']
-const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' }
-const PRIORITY_RANK = { high: 3, medium: 2, low: 1 }
-const DEFAULT_PRIORITY = 'medium'
+/* 任务的等级分成两个维度（2026-10-01 用户要求，从原来的单一「优先级」拆出来）：
+ *   · 轻重（weight）—— 事情的重要性，显示成任务左边的**圆形**，存在 `priority` 字段里
+ *   · 缓急（urgency）—— 事情的紧急性，显示成任务名右边的**沙漏**，存在 `urgency` 字段里
+ * 两个维度共用同一套档位值，颜色沿用原来的优先级色；只有「无」是固定的灰色（不跟主题）。
+ * 字段名继续用 `priority` 存「轻重」，是为了和网页版/桌面版的老数据保持兼容（它们只有 priority）。 */
+const LEVELS = ['none', 'low', 'medium', 'high'] // 也是"点一下切一级"的循环顺序
+const LEVEL_RANK = { none: 0, low: 1, medium: 2, high: 3 }
+const DEFAULT_LEVEL = 'none' // 两个维度**初次使用**的默认都是「无」
+const WEIGHT_LABELS = { none: '无', low: '轻', medium: '中', high: '重' }
+const URGENCY_LABELS = { none: '无', low: '缓', medium: '中', high: '急' }
+
+/* 排序用得到（原来叫 PRIORITY_RANK，现在加上了 none 档） */
+const PRIORITY_RANK = LEVEL_RANK
 
 const FILTER_ORDER = ['all', 'done', 'active']
 const FILTER_LABELS = { all: '全部', done: '已完成', active: '未完成' }
 
-const PRIORITY_FILTER_ORDER = ['all', 'high', 'medium', 'low']
-const PRIORITY_FILTER_LABELS = { all: '全部', high: '高', medium: '中', low: '低' }
+/* 两个维度各一行筛选：全部 + 四档（顺序与"点一下切一级"的循环一致：无 → 轻 → 中 → 重） */
+const LEVEL_FILTER_ORDER = ['all', 'none', 'low', 'medium', 'high']
+const WEIGHT_FILTER_LABELS = { all: '全部', none: '无', low: '轻', medium: '中', high: '重' }
+const URGENCY_FILTER_LABELS = { all: '全部', none: '无', low: '缓', medium: '中', high: '急' }
+
+/* 认不出 / 缺省（老数据没有 urgency）一律当「无」，别让它变成 undefined 漏进筛选和排序 */
+function normalizeLevel(level) {
+  return LEVELS.indexOf(level) === -1 ? DEFAULT_LEVEL : level
+}
+
+/* 点一下切一级：无 → 轻 → 中 → 重 → 无（缓急同理，只是文案不同） */
+function nextLevel(level) {
+  return LEVELS[(LEVELS.indexOf(normalizeLevel(level)) + 1) % LEVELS.length]
+}
 
 const SORT_ORDER = ['time-desc', 'time-asc', 'priority-desc', 'priority-asc', 'name-asc', 'name-desc']
 const SORT_LABELS = {
   'time-desc': '按照时间降序',
   'time-asc': '按照时间升序',
-  'priority-desc': '按照优先级降序',
-  'priority-asc': '按照优先级升序',
+  'priority-desc': '按照轻重降序',
+  'priority-asc': '按照轻重升序',
   'name-asc': '按照名称升序',
   'name-desc': '按照名称降序',
 }
 const SORT_SHORT = {
   'time-desc': '时间 ↓',
   'time-asc': '时间 ↑',
-  'priority-desc': '优先级 ↓',
-  'priority-asc': '优先级 ↑',
+  'priority-desc': '轻重 ↓',
+  'priority-asc': '轻重 ↑',
   'name-asc': '名称 ↑',
   'name-desc': '名称 ↓',
 }
@@ -332,16 +353,21 @@ function matchesFilter(item, filter) {
   return true
 }
 
-function getFilteredItems(items, filter, priority) {
+/* 筛选：完成状态 + 「轻重」+ 「缓急」两个维度（两个筛选项都可以是 'all' 表示不限）。
+ * 判定一律走 normalizeLevel —— 老数据没有 urgency 字段，会被当成「无」，
+ * 这样筛「无」时能正确地把它们一起筛出来。 */
+function getFilteredItems(items, filter, weight, urgency) {
   let list = filter === 'all' ? items.slice() : items.filter((t) => matchesFilter(t, filter))
-  if (priority && priority !== 'all') list = list.filter((t) => t.priority === priority)
+  if (weight && weight !== 'all') list = list.filter((t) => normalizeLevel(t.priority) === weight)
+  if (urgency && urgency !== 'all') list = list.filter((t) => normalizeLevel(t.urgency) === urgency)
   return list
 }
 
 function sortVisibleItems(visible, sort) {
   if (!sort || sort === DEFAULT_SORT) return visible
   const timeOf = (t) => (typeof t.createdAt === 'number' ? t.createdAt : 0)
-  const rankOf = (t) => PRIORITY_RANK[t.priority] || PRIORITY_RANK.medium
+  // 排序按「轻重」算，「无」排最后（等级最低）；同档内按时间从新到旧
+  const rankOf = (t) => LEVEL_RANK[normalizeLevel(t.priority)]
   const comparators = {
     'time-desc': (a, b) => timeOf(b.todo) - timeOf(a.todo),
     'time-asc': (a, b) => timeOf(a.todo) - timeOf(b.todo),
@@ -400,7 +426,8 @@ function highlightSegments(text, indices) {
 
 // filter + 搜索 + 排序，**不做高亮分段**：分段只给当前页那几条算就够了
 function queryItems(items, view) {
-  const scoped = getFilteredItems(items, view.filter, view.priority)
+  // 两个维度一起筛：view.priority 是「轻重」、view.urgency 是「缓急」
+  const scoped = getFilteredItems(items, view.filter, view.priority, view.urgency)
   const q = String(view.search || '').trim()
   let visible
   if (!q) {
@@ -492,14 +519,20 @@ module.exports = {
   formatCreatedAt,
   formatDeletedAt,
   RAINBOW_COLORS,
-  PRIORITY_ORDER,
-  PRIORITY_LABELS,
+  // 等级：轻重（priority 字段）+ 缓急（urgency 字段）两个维度共用一套档位
+  LEVELS,
+  LEVEL_RANK,
+  DEFAULT_LEVEL,
+  WEIGHT_LABELS,
+  URGENCY_LABELS,
+  normalizeLevel,
+  nextLevel,
   PRIORITY_RANK,
-  DEFAULT_PRIORITY,
   FILTER_ORDER,
   FILTER_LABELS,
-  PRIORITY_FILTER_ORDER,
-  PRIORITY_FILTER_LABELS,
+  LEVEL_FILTER_ORDER,
+  WEIGHT_FILTER_LABELS,
+  URGENCY_FILTER_LABELS,
   SORT_ORDER,
   SORT_LABELS,
   SORT_SHORT,

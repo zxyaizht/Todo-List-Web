@@ -8,7 +8,8 @@ const undo = require('../../utils/undo')
 const app = getApp()
 
 // 回收站的视图状态与主列表各自独立
-const view = { search: '', filter: 'all', sort: core.DEFAULT_SORT, priority: 'all', page: 1 }
+// view.priority 是「轻重」、view.urgency 是「缓急」，两个筛选互不影响
+const view = { search: '', filter: 'all', sort: core.DEFAULT_SORT, priority: 'all', urgency: 'all', page: 1 }
 
 // 页码跳转弹窗要用的三个回调（弹窗与解析规则都在 utils/pagedit.js）
 const PAGE_OPTS = {
@@ -29,8 +30,10 @@ function decorate(rec, indices) {
     text: rec.text,
     isColor,
     done: !!rec.done,
-    priority: rec.priority,
-    priorityLabel: core.PRIORITY_LABELS[rec.priority] || '中',
+    // 轻重（圆形）+ 缓急（沙漏），与主列表同一套
+    priority: core.normalizeLevel(rec.priority),
+    weightLabel: core.WEIGHT_LABELS[core.normalizeLevel(rec.priority)],
+    urgency: core.normalizeLevel(rec.urgency),
     // 补一个下标当 wx:key（片段内容可能重复，不能用内容做 key）
     segments: core.highlightSegments(rec.text, indices).map((s, i) => ({ v: s.v, hit: s.hit, i })),
     dateText: core.formatDeletedAt(rec.deletedAt),
@@ -44,8 +47,10 @@ Page({
     search: '',
     filter: 'all',
     priorityFilter: 'all',
-    priorityFilterOrder: core.PRIORITY_FILTER_ORDER,
-    priorityFilterLabels: core.PRIORITY_FILTER_LABELS,
+    urgencyFilter: 'all',
+    levelFilterOrder: core.LEVEL_FILTER_ORDER,
+    weightFilterLabels: core.WEIGHT_FILTER_LABELS,
+    urgencyFilterLabels: core.URGENCY_FILTER_LABELS,
     sortLabel: '排序',
     items: [],
     total: 0,
@@ -97,12 +102,12 @@ Page({
     const visible = pageInfo.visible
     view.page = pageInfo.page
     const pageItems = pageInfo.pageItems
-    const scopeCount = core.getFilteredItems(history, view.filter, view.priority).length
+    const scopeCount = core.getFilteredItems(history, view.filter, view.priority, view.urgency).length
 
     let hint = ''
     let hintNoMatch = false
     if (view.search.trim() && scopeCount > 0) {
-      const scoped = view.filter !== 'all' || view.priority !== 'all'
+      const scoped = view.filter !== 'all' || view.priority !== 'all' || view.urgency !== 'all'
       const prefix = scoped ? '当前筛选范围内 ' : ''
       if (visible.length > 0) hint = `${prefix}找到 ${visible.length} 项匹配（共 ${scopeCount} 项）`
       else {
@@ -122,6 +127,7 @@ Page({
       search: view.search,
       filter: view.filter,
       priorityFilter: view.priority,
+      urgencyFilter: view.urgency,
       sortLabel: core.SORT_SHORT[view.sort] || '排序',
       hint,
       hintNoMatch,
@@ -170,7 +176,9 @@ Page({
           id: rec.id,
           text: rec.text,
           done: rec.done,
-          priority: rec.priority,
+          // 恢复时两个等级都要带回来（轻重 + 缓急）
+          priority: core.normalizeLevel(rec.priority),
+          urgency: core.normalizeLevel(rec.urgency),
           createdAt: rec.createdAt,
         })
       })
@@ -259,10 +267,20 @@ Page({
     })
   },
 
-  setPriorityFilter(e) {
-    const value = e.currentTarget.dataset.priority
+  /* 两个维度各一行筛选（都是视图状态，不持久化；切换后回到第 1 页） */
+  setWeightFilter(e) {
+    const value = e.currentTarget.dataset.level
     if (value === view.priority) return
     view.priority = value
+    view.page = 1
+    sound.play('priority')
+    this.refresh()
+  },
+
+  setUrgencyFilter(e) {
+    const value = e.currentTarget.dataset.level
+    if (value === view.urgency) return
+    view.urgency = value
     view.page = 1
     sound.play('priority')
     this.refresh()
