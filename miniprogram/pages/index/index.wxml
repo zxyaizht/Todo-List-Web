@@ -109,17 +109,17 @@
         wx:key="id"
         class="item priority-{{item.priority}} {{item.done ? 'done' : ''}}"
       >
-        <!-- 轻重（重要性）：左边的圆形，点它弹窗改等级。外面套一层只为把点按区域放大
-             （44rpx 的圆太小了），负 margin 抵消掉多出来的内边距，视觉位置和以前一样 -->
-        <view class="badge-hit" data-id="{{item.id}}" bindtap="openLevelDialog" hover-class="badge-hit-hover">
-          <view class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
-        </view>
         <view class="check {{item.done ? 'checked' : ''}}" data-id="{{item.id}}" bindtap="toggleTodo">✓</view>
         <view class="item-text" data-id="{{item.id}}" bindtap="editTodo">
           <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
         </view>
-        <!-- 缓急（紧急性）：名称右边、日期左边的沙漏。只靠颜色表达等级（不加文字），
-             点它和点圆形是同一个弹窗 -->
+        <!-- 轻重（重要性）圆形 + 缓急（紧急性）沙漏，都放在任务名右边、日期左边：
+             一是两个等级成组好认，二是离左边的完成按钮远一点，点完成时不会误触到它。
+             各自套一层只为把点按区域放大（44rpx / 34rpx 都太小），
+             负 margin 把多出来的内边距抵消掉，视觉位置不变。两个都点开同一个改等级弹窗。 -->
+        <view class="badge-hit" data-id="{{item.id}}" bindtap="openLevelDialog" hover-class="badge-hit-hover" aria-label="轻重">
+          <view class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
+        </view>
         <view class="urgency-hit" data-id="{{item.id}}" bindtap="openLevelDialog" hover-class="badge-hit-hover" aria-label="缓急">
           <view class="urgency-icon urgency-{{item.urgency}}"></view>
         </view>

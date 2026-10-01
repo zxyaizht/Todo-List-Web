@@ -410,38 +410,43 @@ page {
 
 /* ── 缓急沙漏（在任务名右边、添加日期左边）──
  * 必须用 CSS 画：emoji ⏳ 是彩色字形，CSS 的 color 改不了它的颜色，
- * 而这里**只能靠颜色**表达缓急程度。两个三角（上下）+ 上下两条横杠拼成沙漏，
- * 颜色用 currentColor —— 谁给 color 就是谁的颜色（见下面的 .urgency-xxx）。 */
+ * 而这里**只能靠颜色**表达缓急程度。
+ * 拟物：上下两块"木板"比玻璃体略宽 + 圆角（做出厚度），
+ * 上半横截面（还剩沙的那半）半透明 —— 像隔着玻璃看，下半是沉下来的沙。 */
 .urgency-icon {
   position: relative;
   flex-shrink: 0;
-  width: 32rpx;
-  height: 36rpx;
+  width: 34rpx;
+  height: 42rpx;
   box-sizing: border-box;
   color: var(--priority-none);
-  border-top: 3rpx solid currentColor;
-  border-bottom: 3rpx solid currentColor;
+  border-top: 5rpx solid currentColor;
+  border-bottom: 5rpx solid currentColor;
+  border-radius: 3rpx;
 }
 
 .urgency-icon::before,
 .urgency-icon::after {
   content: '';
   position: absolute;
-  left: 0;
+  left: 1rpx;
   width: 0;
   height: 0;
   border-left: 16rpx solid transparent;
   border-right: 16rpx solid transparent;
 }
 
+/* 上半：玻璃 + 还没落完的沙（半透明，透出玻璃感） */
 .urgency-icon::before {
   top: 0;
-  border-top: 15rpx solid currentColor; /* 上半：向下的三角 */
+  border-top: 16rpx solid currentColor;
+  opacity: 0.55;
 }
 
+/* 下半：落下来的沙（实心） */
 .urgency-icon::after {
   bottom: 0;
-  border-bottom: 15rpx solid currentColor; /* 下半：向上的三角 */
+  border-bottom: 16rpx solid currentColor;
 }
 
 .urgency-icon.urgency-none {

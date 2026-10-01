@@ -66,13 +66,14 @@
         class="item {{item.isColor ? '' : 'priority-' + item.priority}} {{item.done ? 'done' : ''}}"
       >
         <view wx:if="{{item.isColor}}" class="color-chip" style="background: {{item.text}}"></view>
-        <view wx:else class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
 
         <view class="item-text">
           <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
         </view>
 
-        <!-- 缓急沙漏（只在名称右边、日期左边，与主列表同一位置）；颜色条目没有等级，不显示 -->
+        <!-- 等级与主列表同一位置：任务名右边依次是「轻重」圆形 +「缓急」沙漏。
+             颜色条目没有等级，两个都不显示。 -->
+        <view wx:if="{{!item.isColor}}" class="badge priority-{{item.priority}}">{{item.weightLabel}}</view>
         <view wx:if="{{!item.isColor}}" class="urgency-icon urgency-{{item.urgency}}"></view>
 
         <view wx:if="{{item.kindLabel}}" class="kind-tag">{{item.kindLabel}}</view>

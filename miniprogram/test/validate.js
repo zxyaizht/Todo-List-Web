@@ -312,21 +312,34 @@ check('主列表跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?
 check('回收站跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?view\.page = next[\s\S]{0,60}?this\.refresh\(\)/.test(historyJs))
 check('最近用色跳页后走统一跳页逻辑', /apply\(next\)[\s\S]{0,90}?gotoColorPage/.test(settingsJs))
 
-/* 等级拆成两个维度（2026-10-01 用户要求）：轻重（左边的圆形，存 priority）+ 缓急（名称右边的沙漏，存 urgency）
+/* 等级拆成两个维度（2026-10-01 用户要求）：轻重（圆形，存 priority）+ 缓急（沙漏，存 urgency）。
+ * 两个都放在**任务名右边、日期左边** —— 一是成组好认，二是离左边的完成按钮远一点，
+ * 点「完成」时不会误触到改等级（用户踩过这个）。
  * 注意：这里用本地变量读 index.wxss —— 后面的 indexWxssUi 声明在这段断言**之后**，
  * 直接引用会触发 TDZ（这个坑踩过好几次了）。 */
 const indexWxssBadge = read(path.join(ROOT, 'pages', 'index', 'index.wxss'))
-check('任务行左边是轻重圆形，点它开弹窗', /class="badge-hit" data-id="\{\{item\.id\}\}" bindtap="openLevelDialog"/.test(indexWxmlInput)
-  && /\{\{item\.weightLabel\}\}/.test(indexWxmlInput))
-check('沙漏在任务名之后、添加日期之前', (() => {
-  const txt = indexWxmlInput.indexOf('class="item-text')
+check('任务行的顺序：完成按钮 → 名称 → 轻重圆 → 缓急沙漏 → 日期', (() => {
+  const c = indexWxmlInput.indexOf('class="check ')
+  const t = indexWxmlInput.indexOf('class="item-text')
+  const w = indexWxmlInput.indexOf('class="badge-hit"')
   const u = indexWxmlInput.indexOf('class="urgency-hit"')
   const d = indexWxmlInput.indexOf('class="item-date"')
-  return txt !== -1 && u !== -1 && d !== -1 && txt < u && u < d
+  return c !== -1 && t !== -1 && w !== -1 && u !== -1 && d !== -1 && c < t && t < w && w < u && u < d
 })())
+check('圆和沙漏都可点，且点哪个都开改等级弹窗', /class="badge-hit" data-id="\{\{item\.id\}\}" bindtap="openLevelDialog"/.test(indexWxmlInput)
+  && /class="urgency-hit" data-id="\{\{item\.id\}\}" bindtap="openLevelDialog"/.test(indexWxmlInput))
+check('轻重圆里显示档位文字', /\{\{item\.weightLabel\}\}/.test(indexWxmlInput))
 check('沙漏只靠颜色表达等级（里面没有文字）', /class="urgency-icon urgency-\{\{item\.urgency\}\}"><\/view>/.test(indexWxmlInput))
-check('沙漏用 CSS 画（emoji 改不了颜色）', /\.urgency-icon::before/.test(appWxssInput) && /border-top:\s*15rpx solid currentColor/.test(appWxssInput))
+check('沙漏用 CSS 画（emoji 改不了颜色）', /\.urgency-icon::before/.test(appWxssInput) && /border-top:\s*16rpx solid currentColor/.test(appWxssInput))
+check('沙漏是拟物画法：上下木板比玻璃宽 + 上半半透明', /\.urgency-icon\s*\{[\s\S]*?border-top:\s*5rpx solid currentColor[\s\S]*?border-radius:\s*3rpx/.test(appWxssInput)
+  && /\.urgency-icon::before\s*\{[\s\S]*?opacity:\s*0\.55/.test(appWxssInput))
 check('沙漏四档颜色都定义了（无=固定灰）', ['none', 'low', 'medium', 'high'].every((lv) => new RegExp('\\.urgency-icon\\.urgency-' + lv + '\\s*\\{').test(appWxssInput)))
+check('回收站里等级位置与主列表一致（都在名称右边，圆在沙漏左边）', (() => {
+  const t = historyWxmlInput.indexOf('class="item-text')
+  const w = historyWxmlInput.indexOf('class="badge priority-')
+  const u = historyWxmlInput.indexOf('class="urgency-icon urgency-')
+  return t !== -1 && w !== -1 && u !== -1 && t < w && w < u
+})())
 check('点按区域放大到 68rpx 且视觉不位移', /\.badge-hit\s*\{[\s\S]*?padding:\s*12rpx;[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
 check('沙漏的点按区域也放大了', /\.urgency-hit\s*\{[\s\S]*?padding:\s*12rpx;[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
 check('按下去有反馈', /hover-class="badge-hit-hover"/.test(indexWxmlInput) && /\.badge-hit-hover\s*\{/.test(indexWxssBadge))
