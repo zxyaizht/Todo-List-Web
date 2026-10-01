@@ -92,6 +92,31 @@ miniprogram/
 三者是**各自独立的实现**，数据互不相通（浏览器 localStorage / Electron / 小程序 Storage 是三个不同的存储）。
 数据结构（字段名）保持了一致，将来要做导入导出会比较容易。
 
+## ⚠️ 提交审核前必读：隐私接口声明（不然复制功能会被回收）
+
+小程序里唯一用到的**隐私接口是剪贴板**：`wx.setClipboardData`（设置页点色码复制）。
+微信官方《小程序用户隐私保护指引内容介绍》的映射表里，`wx.setClipboardData` / `wx.getClipboardData`
+属于**「读取你的剪切板」**这一类 —— 也就是**必须在后台声明**，否则：
+
+- 提审时勾「**未采集用户隐私**」→ 审核通过发布后接口权限被**回收**，复制直接报
+  `A:fail appid privacy api banned`；
+- 声明漏了 → 报 `A:fail api scope is not declared in the privacy agreement`。
+
+**正确做法**：小程序管理后台 →「设置 → 服务内容声明 → 用户隐私保护指引」→ 在「开发者处理的信息」里
+勾上 **「读取你的剪切板」**（微信会根据代码里的接口调用把它列为必填），用途如实写
+（例如"用于把颜色色值复制到剪贴板，方便用户粘贴使用"），再补上联系邮箱与存储期限 → 保存
+（补充声明约 5 分钟后生效）→ 再提交审核。
+
+**代码不用改**：微信有「官方隐私授权弹窗」，隐私功能启用后（2023-10-17 起，与 app.json 是否配
+`__usePrivacyCheck__` 无关）开发者不处理也会自动弹；用户同意后**原来那次调用会继续执行**，
+所以复制仍然成功。用户拒绝时报错会走我们 `copyCode` 的 `fail` 分支，提示「复制失败」。
+
+其余用到的 API 都**不在**隐私清单里（逐条核对过）：`setStorageSync` / `getStorageSync`（本机存储）、
+`setNavigationBarColor` / `setNavigationBarTitle`、`navigateTo` / `navigateBack`、
+`createInnerAudioContext` / `setInnerAudioOption`（播放，不是录音）、`getFileSystemManager`
+（只读写自己沙箱里的合成音频）、`createSelectorQuery`、`getEnv`(`wx.env`)、`showModal` / `showToast`。
+另外 `wx.showActionSheet` **只在注释里出现过**（排序早已改成自绘下拉），没有调用。
+
 ## 已知限制
 
 - **中文拼音排序依赖运行时的 `Intl.Collator`**：Android 端（V8）实测可用；iOS 端是 JavaScriptCore，
