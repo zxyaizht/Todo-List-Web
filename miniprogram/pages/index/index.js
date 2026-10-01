@@ -68,6 +68,9 @@ Page({
     pageTotal: 1,
     // 当前键盘高度（px）：弹窗靠它把卡片顶到键盘上方
     pageKeyHeight: 0,
+    // 改优先级弹窗（点任务的优先级标签）
+    priorityDialog: false,
+    priorityPick: 'medium',
     visibleCount: 0,
     totalPages: 1,
     page: 1,
@@ -251,6 +254,46 @@ Page({
   },
 
   /* ── 任务操作 ── */
+
+  /* 改优先级：点任务左边的优先级标签 → 弹窗（选择器和"新建任务"那行是同一套胶囊）→ 确定。
+   * 弹窗里的选中态用 data.priorityPick（**不是**全局的 selectedPriority ——
+   * 那是"新建任务用哪个优先级"，改完不能让下一次新建跟着变）。 */
+  openPriorityDialog(e) {
+    const id = e.currentTarget.dataset.id
+    const todo = store.loadTodos().find((t) => String(t.id) === String(id))
+    if (!todo) return
+    this.priorityTargetId = String(id)
+    this.setData({ priorityDialog: true, priorityPick: todo.priority || 'medium' })
+  },
+
+  pickDialogPriority(e) {
+    const value = e.currentTarget.dataset.priority
+    if (value === this.data.priorityPick) return
+    this.setData({ priorityPick: value })
+    sound.play('priority') // 与新建任务时选优先级同一个反馈音
+  },
+
+  closePriorityDialog() {
+    this.priorityTargetId = null
+    this.setData({ priorityDialog: false })
+  },
+
+  confirmPriorityDialog() {
+    const id = this.priorityTargetId
+    const next = this.data.priorityPick
+    this.priorityTargetId = null
+    this.setData({ priorityDialog: false })
+    if (id == null || !next) return
+    const todos = store.loadTodos()
+    const todo = todos.find((t) => String(t.id) === String(id))
+    // 优先级没变就什么也不做（不写盘、也不白记一步撤回）
+    if (!todo || todo.priority === next) return
+    undo.push()
+    todo.priority = next
+    store.saveTodos(todos)
+    sound.play('priority')
+    this.refresh()
+  },
 
   toggleTodo(e) {
     const id = e.currentTarget.dataset.id

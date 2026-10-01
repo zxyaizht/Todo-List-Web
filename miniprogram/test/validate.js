@@ -312,6 +312,27 @@ check('主列表跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?
 check('回收站跳页后套用新页码并刷新', /apply\(next\)[\s\S]{0,140}?view\.page = next[\s\S]{0,60}?this\.refresh\(\)/.test(historyJs))
 check('最近用色跳页后走统一跳页逻辑', /apply\(next\)[\s\S]{0,90}?gotoColorPage/.test(settingsJs))
 
+/* 点任务的优先级标签 → 弹窗改优先级（先只做小程序主列表）
+ * 注意：这里用本地变量读 index.wxss —— 后面的 indexWxssUi 声明在这段断言**之后**，
+ * 直接引用会触发 TDZ（这个坑踩过好几次了）。 */
+const indexWxssBadge = read(path.join(ROOT, 'pages', 'index', 'index.wxss'))
+check('优先级标签可点（外套一层放大点按区域）', /class="badge-hit" data-id="\{\{item\.id\}\}" bindtap="openPriorityDialog"/.test(indexWxmlInput))
+check('点按区域放大到 68rpx 且视觉不位移', /\.badge-hit\s*\{[\s\S]*?padding:\s*12rpx;[\s\S]*?margin:\s*-12rpx;/.test(indexWxssBadge))
+check('按下去有反馈', /hover-class="badge-hit-hover"/.test(indexWxmlInput) && /\.badge-hit-hover\s*\{/.test(indexWxssBadge))
+check('弹窗复用「新建任务」那套优先级胶囊', /class="priority-select priority-dialog-select"/.test(indexWxmlInput)
+  && /class="priority-option priority-\{\{item\}\} \{\{priorityPick === item \? 'selected' : ''\}\}"/.test(indexWxmlInput))
+check('弹窗列出了全部优先级选项', /wx:for="\{\{priorityOrder\}\}"/.test(indexWxmlInput) && /priorityLabels\[item\]/.test(indexWxmlInput))
+check('弹窗有标题与取消 / 确定', /class="page-dialog-title">修改优先级/.test(indexWxmlInput)
+  && /bindtap="closePriorityDialog"/.test(indexWxmlInput) && /bindtap="confirmPriorityDialog"/.test(indexWxmlInput))
+check('弹窗状态放在 data 里', /priorityDialog:\s*false/.test(indexJs) && /priorityPick:\s*'medium'/.test(indexJs))
+check('打开时用这条任务当前的优先级当选中值', /openPriorityDialog\(e\)[\s\S]{0,320}?priorityPick: todo\.priority/.test(indexJs))
+check('弹窗选择器用自己的选中态', /pickDialogPriority\(e\)[\s\S]{0,180}?setData\(\{ priorityPick: value \}\)/.test(indexJs))
+check('优先级没变就不动数据', /confirmPriorityDialog\(\)[\s\S]{0,420}?todo\.priority === next\) return/.test(indexJs))
+check('确定后刷新列表', bodyOf(indexJs, 'confirmPriorityDialog').includes('this.refresh()'))
+// 改完不能让"新建任务"的默认优先级跟着变（那是另一个状态 selectedPriority）
+check('改优先级不碰新建任务的默认优先级', !/selectedPriority/.test(bodyOf(indexJs, 'confirmPriorityDialog')) && !/savePriority/.test(bodyOf(indexJs, 'confirmPriorityDialog')))
+check('关弹窗会清掉目标 id', bodyOf(indexJs, 'closePriorityDialog').includes('priorityTargetId = null'))
+
 /* 「完成所有」在全完成后变成「取消所有」 */
 check('按钮文案由 completeAllLabel 决定', /class="action-btn complete" bindtap="completeAll">\{\{completeAllLabel\}\}/.test(indexWxmlInput))
 check('文案里有两个分支', indexJs.includes('✅ 完成所有 (${incomplete})') && indexJs.includes("'↩️ 取消所有'"))
@@ -350,7 +371,7 @@ check('列表空时工具栏只剩箭头并居中', /class="list-toolbar \{\{tot
 check('工具行窄屏可换行（不挤压）', /\.list-toolbar\s*\{[\s\S]*?flex-wrap:\s*wrap/.test(appWxssInput))
 /* 每个"改数据"的操作都要先记一步 */
 ;[
-  ['index', ipage => read(path.join(ROOT, 'pages', 'index', 'index.js')), ['addTodo', 'toggleTodo', 'deleteTodo', 'editTodo', 'completeAll', 'clearDone', 'clearIncomplete', 'clearAll', 'completeClear']],
+  ['index', ipage => read(path.join(ROOT, 'pages', 'index', 'index.js')), ['addTodo', 'toggleTodo', 'deleteTodo', 'editTodo', 'completeAll', 'clearDone', 'clearIncomplete', 'clearAll', 'completeClear', 'confirmPriorityDialog']],
   ['history', () => historyJs, ['restoreOne', 'purgeOne', 'restoreByFilter', 'purgeByFilter']],
   ['settings', () => settingsJs, ['applyCustom', 'removeColor', 'clearAllColors']],
 ].forEach(([page, getSrc, fns]) => {

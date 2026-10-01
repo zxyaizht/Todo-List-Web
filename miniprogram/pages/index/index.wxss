@@ -50,3 +50,21 @@
   font-size: 26rpx;
   color: var(--text-light);
 }
+
+/* 点优先级标签改优先级：外面套一层只是把点按区域从 44rpx 放大到 68rpx，
+   负 margin 把多出来的内边距抵消掉，所以视觉位置和原来完全一样 */
+.badge-hit {
+  flex-shrink: 0;
+  padding: 12rpx;
+  margin: -12rpx;
+}
+
+.badge-hit-hover {
+  opacity: 0.55;
+}
+
+/* 改优先级弹窗里的选择器：与「新建任务」那行同一套胶囊，居中摆放 */
+.priority-dialog-select {
+  justify-content: center;
+  margin-top: 28rpx;
+}

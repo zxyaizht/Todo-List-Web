@@ -105,7 +105,11 @@
         wx:key="id"
         class="item priority-{{item.priority}} {{item.done ? 'done' : ''}}"
       >
-        <view class="badge priority-{{item.priority}}">{{item.priorityLabel}}</view>
+        <!-- 优先级标签：点它弹窗改优先级。外面套一层只为把点按区域放大（44rpx 的圆太小了），
+             负 margin 抵消掉多出来的内边距，视觉位置和以前一模一样 -->
+        <view class="badge-hit" data-id="{{item.id}}" bindtap="openPriorityDialog" hover-class="badge-hit-hover">
+          <view class="badge priority-{{item.priority}}">{{item.priorityLabel}}</view>
+        </view>
         <view class="check {{item.done ? 'checked' : ''}}" data-id="{{item.id}}" bindtap="toggleTodo">✓</view>
         <view class="item-text" data-id="{{item.id}}" bindtap="editTodo">
           <text wx:for="{{item.segments}}" wx:for-item="seg" wx:key="i" class="{{seg.hit ? 'hl' : ''}}">{{seg.v}}</text>
@@ -135,6 +139,27 @@
     <view class="action-btn" bindtap="completeClear">✅ 完成所有并清空</view>
     <view class="action-btn {{completed === 0 ? 'disabled' : ''}}" bindtap="clearDone">🗑️ 清空已完成{{completed > 0 ? ' (' + completed + ')' : ''}}</view>
     <view class="action-btn {{incomplete === 0 ? 'disabled' : ''}}" bindtap="clearIncomplete">🧹 清空未完成{{incomplete > 0 ? ' (' + incomplete + ')' : ''}}</view>
+  </view>
+
+  <!-- 改优先级弹窗：选择器与「新建任务」那行是同一套胶囊（.priority-option） -->
+  <view wx:if="{{priorityDialog}}" class="page-dialog">
+    <view class="page-dialog-card">
+      <view class="page-dialog-title">修改优先级</view>
+      <view class="priority-select priority-dialog-select">
+        <text class="priority-label">优先级</text>
+        <view
+          wx:for="{{priorityOrder}}"
+          wx:key="*this"
+          class="priority-option priority-{{item}} {{priorityPick === item ? 'selected' : ''}}"
+          data-priority="{{item}}"
+          bindtap="pickDialogPriority"
+        >{{priorityLabels[item]}}</view>
+      </view>
+      <view class="page-dialog-actions">
+        <view class="page-dialog-btn" bindtap="closePriorityDialog">取消</view>
+        <view class="page-dialog-btn primary" bindtap="confirmPriorityDialog">确定</view>
+      </view>
+    </view>
   </view>
 
   <!-- 页码跳转弹窗：自绘（wx.showModal 的位置与键盘行为都不受控）。
